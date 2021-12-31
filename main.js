@@ -44,7 +44,7 @@ class Porsche extends utils.Adapter {
             this.log.error("Please set username and password in the instance settings");
             return;
         }
-        this.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1";
+        this.userAgent = "ioBroker v0.0.1";
         this.cookieJar = new tough.CookieJar();
         this.requestClient = axios.create({
             jar: this.cookieJar,
@@ -75,7 +75,7 @@ class Porsche extends utils.Adapter {
     }
     async login() {
         const [code_verifier, codeChallenge] = this.getCodeChallenge();
-        await this.requestClient({
+        const resumeUrl = await this.requestClient({
             method: "get",
             url:
                 "https://login.porsche.com/as/authorization.oauth2?client_id=L20OiZ0kBgWt958NWbuCB8gb970y6V6U&response_type=code&redirect_uri=One-Product-App://porsche-id/oauth2redirect&scope=openid%20magiclink%20mbb&display=touch&country=de&locale=de_DE&code_challenge=" +
@@ -91,7 +91,8 @@ class Porsche extends utils.Adapter {
         })
             .then((res) => {
                 this.log.debug(JSON.stringify(res.data));
-                return res.data;
+                this.log.debug(res.request.path);
+                return res.request.path.split("resume=")[1].split("&")[0];
             })
             .catch((error) => {
                 this.log.error(error);
@@ -100,7 +101,7 @@ class Porsche extends utils.Adapter {
                 }
             });
 
-        const code = await this.requestClient({
+        await this.requestClient({
             method: "post",
             url: "https://login.porsche.com/auth/api/v1/de/de_DE/public/login",
             headers: {
@@ -116,7 +117,7 @@ class Porsche extends utils.Adapter {
                 keeploggedin: "true",
                 mobileApp: "true",
                 sec: "high",
-                resume: "/as/Am1AD/resume/as/authorization.ping",
+                resume: resumeUrl,
                 thirdPartyId: "",
                 state: "",
                 "hidden-password": "",
@@ -126,17 +127,50 @@ class Porsche extends utils.Adapter {
                 password: this.config.password,
                 code: "",
             }),
+            maxRedirects: 0,
         })
             .then((res) => {
                 this.log.debug(JSON.stringify(res.data));
-                return res.request.path.split("code=")[1];
+                return;
             })
             .catch((error) => {
+                if (error.response && error.response.status === 302) {
+                    return;
+                }
                 this.log.error(error);
                 if (error.response) {
                     this.log.error(JSON.stringify(error.response.data));
                 }
             });
+
+        const code = await this.requestClient({
+            method: "get",
+            url: "https://login.porsche.com" + resumeUrl,
+            headers: {
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "de-de",
+                "User-Agent": this.userAgent,
+            },
+            jar: this.cookieJar,
+            withCredentials: true,
+            maxRedirects: 0,
+        })
+            .then((res) => {
+                this.log.debug(JSON.stringify(res.data));
+                this.log.debug(res.request.path);
+                return;
+            })
+            .catch((error) => {
+                if (error.response && error.response.status === 302) {
+                    return error.response.headers.location.split("code=")[1];
+                }
+
+                this.log.error(error);
+                if (error.response) {
+                    this.log.error(JSON.stringify(error.response.data));
+                }
+            });
+
         await this.requestClient({
             method: "post",
             url: "https://login.porsche.com/as/token.oauth2",
@@ -219,6 +253,7 @@ class Porsche extends utils.Adapter {
                         { command: "REMOTE_CLIMATIZER_STOP", name: "True = Stop" },
                         { command: "LOCK", name: "True = Lokc" },
                         { command: "UNLOCK", name: "True = Unlock" },
+                        { command: "Refresh", name: "True = Refresh" },
                     ];
                     remoteArray.forEach((remote) => {
                         this.setObjectNotExists(device.vin + ".remote." + remote.command, {
@@ -265,7 +300,7 @@ class Porsche extends utils.Adapter {
         const statusArray = [
             {
                 path: "status",
-                url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=*,cf=*",
+                url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=*&cf=*",
                 desc: "Status of the car",
             },
         ];
@@ -401,6 +436,9 @@ class Porsche extends utils.Adapter {
                 if (command === "REMOTE_CLIMATIZER-temperature") {
                     return;
                 }
+                if (command === "Refresh") {
+                    this.updateDevices();
+                }
 
                 const data = {
                     payload: {},
@@ -422,12 +460,13 @@ class Porsche extends utils.Adapter {
                     url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/" + deviceId + "/commands",
                     headers: {
                         accept: "*/*",
+                        "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
                         "content-type": "application/json",
                         "accept-language": "de",
                         authorization: "Bearer " + this.session.access_token,
                         "user-agent": this.userAgent,
                     },
-                    data: JSON.stringify(data),
+                    data: data,
                 })
                     .then((res) => {
                         this.log.info(JSON.stringify(res.data));
