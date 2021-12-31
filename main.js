@@ -1,0 +1,460 @@
+"use strict";
+
+/*
+ * Created with @iobroker/create-adapter v2.0.1
+ */
+
+// The adapter-core module gives you access to the core ioBroker functions
+// you need to create an adapter
+const utils = require("@iobroker/adapter-core");
+const axios = require("axios");
+const qs = require("qs");
+const crypto = require("crypto");
+const Json2iob = require("./lib/json2iob");
+const tough = require("tough-cookie");
+const { HttpsCookieAgent } = require("http-cookie-agent");
+
+class Porsche extends utils.Adapter {
+    /**
+     * @param {Partial<utils.AdapterOptions>} [options={}]
+     */
+    constructor(options) {
+        super({
+            ...options,
+            name: "porsche",
+        });
+        this.on("ready", this.onReady.bind(this));
+        this.on("stateChange", this.onStateChange.bind(this));
+        this.on("unload", this.onUnload.bind(this));
+        this.deviceArray = [];
+        this.json2iob = new Json2iob(this);
+    }
+
+    /**
+     * Is called when databases are connected and adapter received configuration.
+     */
+    async onReady() {
+        // Reset the connection indicator during startup
+        this.setState("info.connection", false, true);
+        if (this.config.interval < 0.5) {
+            this.log.info("Set interval to minimum 0.5");
+            this.config.interval = 0.5;
+        }
+        if (!this.config.username || !this.config.password) {
+            this.log.error("Please set username and password in the instance settings");
+            return;
+        }
+        this.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1";
+        this.cookieJar = new tough.CookieJar();
+        this.requestClient = axios.create({
+            jar: this.cookieJar,
+            withCredentials: true,
+            httpsAgent: new HttpsCookieAgent({
+                jar: this.cookieJar,
+            }),
+        });
+
+        this.updateInterval = null;
+        this.reLoginTimeout = null;
+        this.refreshTokenTimeout = null;
+        this.session = {};
+        this.subscribeStates("*");
+
+        await this.login();
+
+        if (this.session.access_token) {
+            await this.getDeviceList();
+            await this.updateDevices();
+            this.updateInterval = setInterval(async () => {
+                await this.updateDevices();
+            }, this.config.interval * 60 * 1000);
+            this.refreshTokenInterval = setInterval(() => {
+                this.refreshToken();
+            }, this.session.expires_in * 1000);
+        }
+    }
+    async login() {
+        const [code_verifier, codeChallenge] = this.getCodeChallenge();
+        await this.requestClient({
+            method: "get",
+            url:
+                "https://login.porsche.com/as/authorization.oauth2?client_id=L20OiZ0kBgWt958NWbuCB8gb970y6V6U&response_type=code&redirect_uri=One-Product-App://porsche-id/oauth2redirect&scope=openid%20magiclink%20mbb&display=touch&country=de&locale=de_DE&code_challenge=" +
+                codeChallenge +
+                "&code_challenge_method=S256",
+            headers: {
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "de-de",
+                "User-Agent": this.userAgent,
+            },
+            jar: this.cookieJar,
+            withCredentials: true,
+        })
+            .then((res) => {
+                this.log.debug(JSON.stringify(res.data));
+                return res.data;
+            })
+            .catch((error) => {
+                this.log.error(error);
+                if (error.response) {
+                    this.log.error(JSON.stringify(error.response.data));
+                }
+            });
+
+        const code = await this.requestClient({
+            method: "post",
+            url: "https://login.porsche.com/auth/api/v1/de/de_DE/public/login",
+            headers: {
+                Origin: "https://login.porsche.com",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "User-Agent": this.userAgent,
+                "Accept-Language": "de-de",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            jar: this.cookieJar,
+            withCredentials: true,
+            data: qs.stringify({
+                keeploggedin: "true",
+                mobileApp: "true",
+                sec: "high",
+                resume: "/as/Am1AD/resume/as/authorization.ping",
+                thirdPartyId: "",
+                state: "",
+                "hidden-password": "",
+                username: this.config.username,
+                "country-code-select": "+86",
+                phoneNumber: "",
+                password: this.config.password,
+                code: "",
+            }),
+        })
+            .then((res) => {
+                this.log.debug(JSON.stringify(res.data));
+                return res.request.path.split("code=")[1];
+            })
+            .catch((error) => {
+                this.log.error(error);
+                if (error.response) {
+                    this.log.error(JSON.stringify(error.response.data));
+                }
+            });
+        await this.requestClient({
+            method: "post",
+            url: "https://login.porsche.com/as/token.oauth2",
+            headers: {
+                Accept: "*/*",
+                "User-Agent": this.userAgent,
+                "Accept-Language": "de",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data: qs.stringify({
+                client_id: "L20OiZ0kBgWt958NWbuCB8gb970y6V6U",
+                code: code,
+                code_verifier: code_verifier,
+                grant_type: "authorization_code",
+                redirect_uri: "One-Product-App://porsche-id/oauth2redirect",
+            }),
+        })
+            .then((res) => {
+                this.log.debug(JSON.stringify(res.data));
+                this.session = res.data;
+                this.setState("info.connection", true, true);
+            })
+            .catch((error) => {
+                this.log.error(error);
+                if (error.response) {
+                    this.log.error(JSON.stringify(error.response.data));
+                }
+            });
+    }
+    async getDeviceList() {
+        await this.requestClient({
+            method: "get",
+            url: "https://api.ppa.porsche.com/app/connect/v1/vehicles",
+            headers: {
+                accept: "*/*",
+                "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
+                authorization: "Bearer " + this.session.access_token,
+                "user-agent": this.userAgent,
+                "accept-language": "de",
+            },
+        })
+            .then(async (res) => {
+                this.log.debug(JSON.stringify(res.data));
+
+                for (const device of res.data) {
+                    this.deviceArray.push(device.vin);
+                    let name = device.modelName;
+                    if (device.customName) {
+                        name += device.customName;
+                    }
+                    await this.setObjectNotExistsAsync(device.vin, {
+                        type: "device",
+                        common: {
+                            name: name,
+                        },
+                        native: {},
+                    });
+                    await this.setObjectNotExistsAsync(device.vin + ".remote", {
+                        type: "channel",
+                        common: {
+                            name: "Remote Controls",
+                        },
+                        native: {},
+                    });
+                    await this.setObjectNotExistsAsync(device.vin + ".general", {
+                        type: "channel",
+                        common: {
+                            name: "General Information",
+                        },
+                        native: {},
+                    });
+
+                    const remoteArray = [
+                        { command: "REMOTE_HEATING_START", name: "True = Start" },
+                        { command: "REMOTE_CLIMATIZER-temperature", name: "REMOTE_CLIMATIZER Temperature", type: "number", role: "value" },
+                        { command: "REMOTE_HEATING_STOP", name: "True = Stop" },
+                        { command: "REMOTE_ACV_START", name: "True = Start" },
+                        { command: "REMOTE_ACV_STOP", name: "True = Stop" },
+                        { command: "REMOTE_CLIMATIZER_START", name: "True = Start" },
+                        { command: "REMOTE_CLIMATIZER_STOP", name: "True = Stop" },
+                        { command: "LOCK", name: "True = Lokc" },
+                        { command: "UNLOCK", name: "True = Unlock" },
+                    ];
+                    remoteArray.forEach((remote) => {
+                        this.setObjectNotExists(device.vin + ".remote." + remote.command, {
+                            type: "state",
+                            common: {
+                                name: remote.name || "",
+                                type: remote.type || "boolean",
+                                role: remote.role || "boolean",
+                                write: true,
+                                read: true,
+                            },
+                            native: {},
+                        });
+                    });
+                    this.json2iob.parse(device.vin + ".general", device);
+                    await this.requestClient({
+                        method: "get",
+                        url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/" + device.vin + "/pictures",
+                        headers: {
+                            accept: "*/*",
+                            "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
+                            authorization: "Bearer " + this.session.access_token,
+                            "user-agent": this.userAgent,
+                            "accept-language": "de",
+                        },
+                    })
+                        .then(async (res) => {
+                            this.log.debug(JSON.stringify(res.data));
+                            this.json2iob.parse(device.vin + ".pictures", res.data, { preferedArrayName: "view" });
+                        })
+                        .catch((error) => {
+                            this.log.error(error);
+                            error.response && this.log.error(JSON.stringify(error.response.data));
+                        });
+                }
+            })
+            .catch((error) => {
+                this.log.error(error);
+                error.response && this.log.error(JSON.stringify(error.response.data));
+            });
+    }
+
+    async updateDevices() {
+        const statusArray = [
+            {
+                path: "status",
+                url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=*,cf=*",
+                desc: "Status of the car",
+            },
+        ];
+
+        const headers = {
+            accept: "*/*",
+            "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
+            authorization: "Bearer " + this.session.access_token,
+            "user-agent": this.userAgent,
+            "accept-language": "de",
+        };
+        for (const vin of this.deviceArray) {
+            for (const element of statusArray) {
+                const url = element.url.replace("$vin", vin);
+
+                await this.requestClient({
+                    method: "get",
+                    url: url,
+                    headers: headers,
+                })
+                    .then((res) => {
+                        this.log.debug(JSON.stringify(res.data));
+                        if (!res.data) {
+                            return;
+                        }
+                        const data = res.data;
+
+                        const forceIndex = null;
+                        const preferedArrayName = null;
+
+                        this.json2iob.parse(vin + "." + element.path, data, { forceIndex: forceIndex, preferedArrayName: preferedArrayName, channelName: element.desc });
+                    })
+                    .catch((error) => {
+                        if (error.response) {
+                            if (error.response.status === 401) {
+                                error.response && this.log.debug(JSON.stringify(error.response.data));
+                                this.log.info(element.path + " receive 401 error. Refresh Token in 60 seconds");
+                                this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout);
+                                this.refreshTokenTimeout = setTimeout(() => {
+                                    this.refreshToken();
+                                }, 1000 * 60);
+
+                                return;
+                            }
+                        }
+                        this.log.error(url);
+                        this.log.error(error);
+                        error.response && this.log.error(JSON.stringify(error.response.data));
+                    });
+            }
+        }
+    }
+    async refreshToken() {
+        if (!this.session) {
+            this.log.error("No session found relogin");
+            await this.login();
+            return;
+        }
+        await this.requestClient({
+            method: "post",
+            url: "https://login.porsche.com/as/token.oauth2",
+            headers: {
+                Accept: "*/*",
+                "User-Agent": this.userAgent,
+                "Accept-Language": "de",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data: qs.stringify({
+                client_id: "L20OiZ0kBgWt958NWbuCB8gb970y6V6U",
+                grant_type: "refresh_token",
+                refresh_token: this.session.refresh_token,
+            }),
+        })
+            .then((res) => {
+                this.log.debug(JSON.stringify(res.data));
+                this.session = res.data;
+                this.setState("info.connection", true, true);
+            })
+            .catch((error) => {
+                this.log.error("refresh token failed");
+                this.log.error(error);
+                error.response && this.log.error(JSON.stringify(error.response.data));
+                this.log.error("Start relogin in 1min");
+                this.reLoginTimeout && clearTimeout(this.reLoginTimeout);
+                this.reLoginTimeout = setTimeout(() => {
+                    this.login();
+                }, 1000 * 60 * 1);
+            });
+    }
+
+    getCodeChallenge() {
+        let hash = "";
+        let result = "";
+        const chars = "0123456789abcdef";
+        result = "";
+        for (let i = 64; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
+        hash = crypto.createHash("sha256").update(result).digest("base64");
+        hash = hash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
+        return [result, hash];
+    }
+    /**
+     * Is called when adapter shuts down - callback has to be called under any circumstances!
+     * @param {() => void} callback
+     */
+    onUnload(callback) {
+        try {
+            this.setState("info.connection", false, true);
+            this.refreshTimeout && clearTimeout(this.refreshTimeout);
+            this.reLoginTimeout && clearTimeout(this.reLoginTimeout);
+            this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout);
+            this.updateInterval && clearInterval(this.updateInterval);
+            this.refreshTokenInterval && clearInterval(this.refreshTokenInterval);
+            callback();
+        } catch (e) {
+            callback();
+        }
+    }
+
+    /**
+     * Is called if a subscribed state changes
+     * @param {string} id
+     * @param {ioBroker.State | null | undefined} state
+     */
+    async onStateChange(id, state) {
+        if (state) {
+            if (!state.ack) {
+                const deviceId = id.split(".")[2];
+                const command = id.split(".")[4];
+                if (id.split(".")[3] !== "remote") {
+                    return;
+                }
+                if (command === "REMOTE_CLIMATIZER-temperature") {
+                    return;
+                }
+
+                const data = {
+                    payload: {},
+                    key: command,
+                };
+                if (command === "REMOTE_CLIMATIZER_START") {
+                    const temperatureState = await this.getStateAsync(deviceId + ".remote.REMOTE_CLIMATIZER-temperature");
+                    if (temperatureState) {
+                        data.payload.temperature = temperatureState.val ? temperatureState.val : 22;
+                    } else {
+                        data.payload.temperature = 22;
+                    }
+                }
+
+                this.log.debug(JSON.stringify(data));
+
+                await this.requestClient({
+                    method: "post",
+                    url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/" + deviceId + "/commands",
+                    headers: {
+                        accept: "*/*",
+                        "content-type": "application/json",
+                        "accept-language": "de",
+                        authorization: "Bearer " + this.session.access_token,
+                        "user-agent": this.userAgent,
+                    },
+                    data: JSON.stringify(data),
+                })
+                    .then((res) => {
+                        this.log.info(JSON.stringify(res.data));
+                        return res.data;
+                    })
+                    .catch((error) => {
+                        this.log.error(error);
+                        if (error.response) {
+                            this.log.error(JSON.stringify(error.response.data));
+                        }
+                    });
+                this.refreshTimeout && clearTimeout(this.refreshTimeout);
+                this.refreshTimeout = setTimeout(async () => {
+                    await this.updateDevices();
+                }, 10 * 1000);
+            }
+        }
+    }
+}
+
+if (require.main !== module) {
+    // Export the constructor in compact mode
+    /**
+     * @param {Partial<utils.AdapterOptions>} [options={}]
+     */
+    module.exports = (options) => new Porsche(options);
+} else {
+    // otherwise start the instance directly
+    new Porsche();
+}

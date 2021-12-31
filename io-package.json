@@ -1,0 +1,116 @@
+{
+    "common": {
+        "name": "porsche",
+        "version": "0.0.1",
+        "news": {
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "zh-cn": "首次出版"
+            }
+        },
+        "title": "Porsche",
+        "titleLang": {
+            "en": "Porsche",
+            "de": "Porsche",
+            "ru": "Порше",
+            "pt": "Porsche",
+            "nl": "Porsche",
+            "fr": "Porsche",
+            "it": "Porsche",
+            "es": "Porsche",
+            "pl": "Porsche",
+            "zh-cn": "保时捷"
+        },
+        "desc": {
+            "en": "Adapter for myPorsche",
+            "de": "Adapter für myPorsche",
+            "ru": "Адаптер для myPorsche",
+            "pt": "Adaptador para myPorsche",
+            "nl": "Adapter voor myPorsche",
+            "fr": "Adaptateur pour myPorsche",
+            "it": "Adattatore per myPorsche",
+            "es": "Adaptador para myPorsche",
+            "pl": "Adapter do myPorsche",
+            "zh-cn": "myPorsche 适配器"
+        },
+        "authors": [
+            "TA2k <tombox2020@gmail.com>"
+        ],
+        "keywords": [
+            "porsche",
+            "myporsche"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "porsche.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/TA2k/ioBroker.porsche/master/admin/porsche.png",
+        "readme": "https://github.com/TA2k/ioBroker.porsche/blob/master/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "vehicle",
+        "compact": true,
+        "connectionType": "cloud",
+        "dataSource": "poll",
+        "materialize": true,
+        "plugins": {
+            "sentry": {
+                "dsn": "https://c9bd6c851b1246da95e6e982aa9b88f3@sentry.iobroker.net/152"
+            }
+        },
+        "dependencies": [
+            {
+                "js-controller": ">=3.2.0"
+            }
+        ],
+        "globalDependencies": [
+            {
+                "admin": ">=4.0.9"
+            }
+        ]
+    },
+    "encryptedNative": [
+        "password"
+    ],
+    "protectedNative": [
+        "password"
+    ],
+    "native": {
+        "username": "",
+        "password": "",
+        "interval": 10
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
