@@ -300,7 +300,7 @@ class Porsche extends utils.Adapter {
         const statusArray = [
             {
                 path: "status",
-                url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=*&cf=*",
+                url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=*",
                 desc: "Status of the car",
             },
         ];
