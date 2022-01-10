@@ -1,6 +1,6 @@
 {
     "name": "iobroker.porsche",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Adapter for myPorsche",
     "author": {
         "name": "TA2k",
