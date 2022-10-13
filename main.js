@@ -7,12 +7,13 @@
 // The adapter-core module gives you access to the core ioBroker functions
 // you need to create an adapter
 const utils = require("@iobroker/adapter-core");
-const axios = require("axios");
+const axios = require("axios").default;
 const qs = require("qs");
 const crypto = require("crypto");
 const Json2iob = require("./lib/json2iob");
 const tough = require("tough-cookie");
-const { HttpsCookieAgent } = require("http-cookie-agent");
+const { v4: uuidv4 } = require("uuid");
+const { HttpsCookieAgent } = require("http-cookie-agent/http");
 
 class Porsche extends utils.Adapter {
   /**
@@ -28,6 +29,13 @@ class Porsche extends utils.Adapter {
     this.on("unload", this.onUnload.bind(this));
     this.deviceArray = [];
     this.json2iob = new Json2iob(this);
+    this.lastForceRefresh = 0;
+    this.cookieJar = new tough.CookieJar();
+    this.requestClient = axios.create({
+      withCredentials: true,
+      httpsAgent: new HttpsCookieAgent({ cookies: { jar: this.cookieJar } }),
+    });
+    this.userAgent = "ioBroker";
   }
 
   /**
@@ -44,16 +52,7 @@ class Porsche extends utils.Adapter {
       this.log.error("Please set username and password in the instance settings");
       return;
     }
-    this.userAgent = "ioBroker v0.0.1";
-    this.cookieJar = new tough.CookieJar();
-    this.requestClient = axios.create({
-      jar: this.cookieJar,
-      withCredentials: true,
-      httpsAgent: new HttpsCookieAgent({
-        jar: this.cookieJar,
-      }),
-    });
-
+    this.userAgent = "ioBroker v" + this.version;
     this.updateInterval = null;
     this.reLoginTimeout = null;
     this.refreshTokenTimeout = null;
@@ -64,7 +63,7 @@ class Porsche extends utils.Adapter {
 
     if (this.session.access_token) {
       await this.getDeviceList();
-      await this.updateDevices();
+      await this.updateDevices(true);
       this.updateInterval = setInterval(async () => {
         await this.updateDevices();
       }, this.config.interval * 60 * 1000);
@@ -86,8 +85,6 @@ class Porsche extends utils.Adapter {
         "Accept-Language": "de-de",
         "User-Agent": this.userAgent,
       },
-      jar: this.cookieJar,
-      withCredentials: true,
     })
       .then((res) => {
         this.log.debug(JSON.stringify(res.data));
@@ -111,8 +108,6 @@ class Porsche extends utils.Adapter {
         "Accept-Language": "de-de",
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      jar: this.cookieJar,
-      withCredentials: true,
       data: qs.stringify({
         keeploggedin: "true",
         mobileApp: "true",
@@ -151,8 +146,6 @@ class Porsche extends utils.Adapter {
         "Accept-Language": "de-de",
         "User-Agent": this.userAgent,
       },
-      jar: this.cookieJar,
-      withCredentials: true,
       maxRedirects: 0,
     })
       .then((res) => {
@@ -254,6 +247,7 @@ class Porsche extends utils.Adapter {
             { command: "LOCK", name: "True = Lokc" },
             { command: "UNLOCK", name: "True = Unlock" },
             { command: "Refresh", name: "True = Refresh" },
+            { command: "Force_Refresh", name: "True = Force Refresh" },
           ];
           remoteArray.forEach((remote) => {
             this.setObjectNotExists(device.vin + ".remote." + remote.command, {
@@ -296,11 +290,23 @@ class Porsche extends utils.Adapter {
       });
   }
 
-  async updateDevices() {
+  async updateDevices(forceRefresh) {
+    if (Date.now() - this.lastForceRefresh > 1000 * 60 * 60) {
+      // force refresh every hour
+      forceRefresh = true;
+    }
+
+    this.lastForceRefresh = Date.now();
+    let url =
+      "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=ACV_STATE&mf=BATTERY_CHARGING_STATE&mf=BATTERY_LEVEL&mf=BATTERY_TYPE&mf=BLEID_DDADATA&mf=CAR_ALARMS_HISTORY&mf=CHARGING_PROFILES&mf=CLIMATIZER_STATE&mf=E_CONSUMPTION_DATA&mf=E_RANGE&mf=FUEL_LEVEL&mf=FUEL_RESERVE&mf=GLOBAL_PRIVACY_MODE&mf=GPS_LOCATION&mf=HEATING_STATE&mf=INTERMEDIATE_SERVICE_RANGE&mf=INTERMEDIATE_SERVICE_TIME&mf=LOCATION_ALARMS&mf=LOCATION_ALARMS_HISTORY&mf=LOCK_STATE_VEHICLE&mf=MAIN_SERVICE_RANGE&mf=MAIN_SERVICE_TIME&mf=MILEAGE&mf=OIL_LEVEL_CURRENT&mf=OIL_LEVEL_MAX&mf=OIL_LEVEL_MIN_WARNING&mf=OIL_SERVICE_RANGE&mf=OIL_SERVICE_TIME&mf=OPEN_STATE_CHARGE_FLAP_LEFT&mf=OPEN_STATE_CHARGE_FLAP_RIGHT&mf=OPEN_STATE_DOOR_FRONT_LEFT&mf=OPEN_STATE_DOOR_FRONT_RIGHT&mf=OPEN_STATE_DOOR_REAR_LEFT&mf=OPEN_STATE_DOOR_REAR_RIGHT&mf=OPEN_STATE_LID_FRONT&mf=OPEN_STATE_LID_REAR&mf=OPEN_STATE_SERVICE_FLAP&mf=OPEN_STATE_SPOILER&mf=OPEN_STATE_SUNROOF&mf=OPEN_STATE_TOP&mf=OPEN_STATE_WINDOW_FRONT_LEFT&mf=OPEN_STATE_WINDOW_FRONT_RIGHT&mf=OPEN_STATE_WINDOW_REAR_LEFT&mf=OPEN_STATE_WINDOW_REAR_RIGHT&mf=PARKING_LIGHT&mf=RANGE&mf=REMOTE_ACCESS_AUTHORIZATION&mf=SERVICE_PREDICTIONS&mf=SPEED_ALARMS&mf=SPEED_ALARMS_HISTORY&mf=THEFT_MODE&mf=TIMERS&mf=TIRE_PRESSURE&mf=TRIP_STATISTICS_CYCLIC&mf=TRIP_STATISTICS_LONG_TERM&mf=TRIP_STATISTICS_LONG_TERM_HISTORY&mf=TRIP_STATISTICS_SHORT_TERM&mf=VALET_ALARM&mf=VALET_ALARM_HISTORY&mf=VTS_MODES";
+
+    if (forceRefresh) {
+      url += "&wakeUpJob=" + uuidv4();
+    }
     const statusArray = [
       {
         path: "status",
-        url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=ACV_STATE&mf=BATTERY_CHARGING_STATE&mf=BATTERY_LEVEL&mf=BATTERY_TYPE&mf=BLEID_DDADATA&mf=CAR_ALARMS_HISTORY&mf=CHARGING_PROFILES&mf=CLIMATIZER_STATE&mf=E_RANGE&mf=FUEL_LEVEL&mf=FUEL_RESERVE&mf=GLOBAL_PRIVACY_MODE&mf=GPS_LOCATION&mf=HEATING_STATE&mf=INTERMEDIATE_SERVICE_RANGE&mf=INTERMEDIATE_SERVICE_TIME&mf=LOCATION_ALARMS&mf=LOCATION_ALARMS_HISTORY&mf=LOCK_STATE_VEHICLE&mf=MAIN_SERVICE_RANGE&mf=MAIN_SERVICE_TIME&mf=MILEAGE&mf=OIL_LEVEL_CURRENT&mf=OIL_LEVEL_MAX&mf=OIL_LEVEL_MIN_WARNING&mf=OIL_SERVICE_RANGE&mf=OIL_SERVICE_TIME&mf=OPEN_STATE_CHARGE_FLAP_LEFT&mf=OPEN_STATE_CHARGE_FLAP_RIGHT&mf=OPEN_STATE_DOOR_FRONT_LEFT&mf=OPEN_STATE_DOOR_FRONT_RIGHT&mf=OPEN_STATE_DOOR_REAR_LEFT&mf=OPEN_STATE_DOOR_REAR_RIGHT&mf=OPEN_STATE_LID_FRONT&mf=OPEN_STATE_LID_REAR&mf=OPEN_STATE_SERVICE_FLAP&mf=OPEN_STATE_SPOILER&mf=OPEN_STATE_SUNROOF&mf=OPEN_STATE_TOP&mf=OPEN_STATE_WINDOW_FRONT_LEFT&mf=OPEN_STATE_WINDOW_FRONT_RIGHT&mf=OPEN_STATE_WINDOW_REAR_LEFT&mf=OPEN_STATE_WINDOW_REAR_RIGHT&mf=PARKING_LIGHT&mf=RANGE&mf=REMOTE_ACCESS_AUTHORIZATION&mf=SERVICE_PREDICTIONS&mf=SPEED_ALARMS&mf=SPEED_ALARMS_HISTORY&mf=THEFT_MODE&mf=TIMERS&mf=TRIP_STATISTICS_CYCLIC&mf=TRIP_STATISTICS_LONG_TERM&mf=TRIP_STATISTICS_SHORT_TERM&mf=VALET_ALARM&mf=VALET_ALARM_HISTORY&mf=VTS_MODES",
+        url: url,
         desc: "Status of the car",
       },
     ];
@@ -442,6 +448,9 @@ class Porsche extends utils.Adapter {
         }
         if (command === "Refresh") {
           this.updateDevices();
+        }
+        if (command === "Force_Refresh") {
+          this.updateDevices(true);
         }
 
         const data = {
