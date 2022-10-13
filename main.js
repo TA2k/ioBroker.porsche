@@ -291,8 +291,8 @@ class Porsche extends utils.Adapter {
   }
 
   async updateDevices(forceRefresh) {
-    if (Date.now() - this.lastForceRefresh > 1000 * 60 * 60) {
-      // force refresh every hour
+    if (Date.now() - this.lastForceRefresh > 1000 * 60 * 60 * 3) {
+      // force refresh every 3 hour
       forceRefresh = true;
     }
 
