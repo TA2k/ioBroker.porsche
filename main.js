@@ -10,7 +10,7 @@ const utils = require("@iobroker/adapter-core");
 const axios = require("axios").default;
 const qs = require("qs");
 const crypto = require("crypto");
-const Json2iob = require("./lib/json2iob");
+const Json2iob = require("json2iob");
 const tough = require("tough-cookie");
 const { v4: uuidv4 } = require("uuid");
 const { HttpsCookieAgent } = require("http-cookie-agent/http");
@@ -74,12 +74,11 @@ class Porsche extends utils.Adapter {
   }
   async login() {
     const [code_verifier, codeChallenge] = this.getCodeChallenge();
-    const resumeUrl = await this.requestClient({
+    const loginForm = await this.requestClient({
       method: "get",
       url:
-        "https://login.porsche.com/as/authorization.oauth2?client_id=L20OiZ0kBgWt958NWbuCB8gb970y6V6U&response_type=code&redirect_uri=One-Product-App://porsche-id/oauth2redirect&scope=openid%20magiclink%20mbb&display=touch&country=de&locale=de_DE&code_challenge=" +
-        codeChallenge +
-        "&code_challenge_method=S256",
+        "https://identity.porsche.com/authorize?scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&state=fON6XJsh6rdKOGTpCjY7W2lFmj25rpXbNVsi-sM7JZ0&prompt=login&ext-country=DE&device=touch&audience=https://api.porsche.com&redirect_uri=my-porsche-app://auth0/callback&ui_locales=de-DE&response_type=code&client_id=XhygisuebbrqQ80byOuU5VncxLIm8E6H&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9&code_challenge=" +
+        codeChallenge,
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "de-de",
@@ -88,8 +87,40 @@ class Porsche extends utils.Adapter {
     })
       .then((res) => {
         this.log.debug(JSON.stringify(res.data));
-        this.log.debug(res.request.path);
-        return res.request.path.split("resume=")[1].split("&")[0];
+        return res.data;
+      })
+      .catch((error) => {
+        this.log.error(error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+      });
+    const form = this.extractHidden(loginForm);
+    form.username = this.config.username;
+    form.password = this.config.password;
+    const callBackForm = await this.requestClient({
+      method: "post",
+      maxBodyLength: Infinity,
+      url: "https://identity.porsche.com/usernamepassword/login",
+      headers: {
+        Host: "identity.porsche.com",
+        Accept: "*/*",
+        "Accept-Language": "de-de",
+        "Content-Type": "application/json",
+        Origin: "https://identity.porsche.com",
+        "User-Agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
+        Referer:
+          "https://identity.porsche.com/login?state=hKFo2SAyaGk3ekotaUlQUjJXVG9Cb2FBcElTbnFWbXlkVjY0daFupWxvZ2luo3RpZNkgRzZXY2V6VUZEekV6S2lrVVVqOWZwYmNiWUFlQ2RTcjGjY2lk2SBYaHlnaXN1ZWJicnFRODBieU91VTVWbmN4TEltOEU2SA&client=XhygisuebbrqQ80byOuU5VncxLIm8E6H&protocol=oauth2&prompt=login&scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&code_challenge=ahY5AgeOVTblwLSCX3bhJMgn33VHGM8sNgA6eqbJ54k&ext-country=DE&device=touch&audience=https%3A%2F%2Fapi.porsche.com&redirect_uri=my-porsche-app%3A%2F%2Fauth0%2Fcallback&ui_locales=de-DE&response_type=code&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9",
+        "Auth0-Client": "eyJuYW1lIjoiYXV0aDAuanMtdWxwIiwidmVyc2lvbiI6IjkuMjAuMiJ9",
+        Cookie:
+          "_csrf=-CfLqCsloDbPsZzDyRgKXhjK; did=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U; did_compat=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U",
+      },
+      data: JSON.stringify(form),
+    })
+      .then((res) => {
+        this.log.debug(JSON.stringify(res.data));
+        return res.data;
       })
       .catch((error) => {
         this.log.error(error);
@@ -98,55 +129,17 @@ class Porsche extends utils.Adapter {
         }
       });
 
-    await this.requestClient({
-      method: "post",
-      url: "https://login.porsche.com/auth/api/v1/de/de_DE/public/login",
-      headers: {
-        Origin: "https://login.porsche.com",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": this.userAgent,
-        "Accept-Language": "de-de",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      data: qs.stringify({
-        keeploggedin: "true",
-        mobileApp: "true",
-        sec: "high",
-        resume: resumeUrl,
-        thirdPartyId: "",
-        state: "",
-        "hidden-password": "",
-        username: this.config.username,
-        "country-code-select": "+86",
-        phoneNumber: "",
-        password: this.config.password,
-        code: "",
-      }),
-      maxRedirects: 0,
-    })
-      .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        return;
-      })
-      .catch((error) => {
-        if (error.response && error.response.status === 302) {
-          return;
-        }
-        this.log.error(error);
-        if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
-        }
-      });
+  const submitForm = this.extractHidden(callBackForm);
 
     const code = await this.requestClient({
-      method: "get",
-      url: "https://login.porsche.com" + resumeUrl,
+      method: "post",
+      url:"https://identity.porsche.com/login/callback"
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "de-de",
         "User-Agent": this.userAgent,
       },
-      maxRedirects: 0,
+     data: qs.stringify(form),
     })
       .then((res) => {
         this.log.debug(JSON.stringify(res.data));
@@ -166,7 +159,7 @@ class Porsche extends utils.Adapter {
 
     await this.requestClient({
       method: "post",
-      url: "https://login.porsche.com/as/token.oauth2",
+      url: "https://identity.porsche.com/oauth/token",
       headers: {
         Accept: "*/*",
         "User-Agent": this.userAgent,
@@ -174,11 +167,11 @@ class Porsche extends utils.Adapter {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       data: qs.stringify({
-        client_id: "L20OiZ0kBgWt958NWbuCB8gb970y6V6U",
+        client_id: "XhygisuebbrqQ80byOuU5VncxLIm8E6H",
         code: code,
         code_verifier: code_verifier,
         grant_type: "authorization_code",
-        redirect_uri: "One-Product-App://porsche-id/oauth2redirect",
+        redirect_uri: "my-porsche-app:\/\/auth0\/callback",
       }),
     })
       .then((res) => {
@@ -192,6 +185,16 @@ class Porsche extends utils.Adapter {
           this.log.error(JSON.stringify(error.response.data));
         }
       });
+  }
+  extractHidden(body) {
+    const returnObject = {};
+    const matches = body.matchAll(/<input (?=[^>]* name=["']([^'"]*)|)(?=[^>]* value=["']([^'"]*)|)/g);
+    for (const match of matches) {
+      if (match[2] != null) {
+        returnObject[match[1]] = match[2];
+      }
+    }
+    return returnObject;
   }
   async getDeviceList() {
     await this.requestClient({
