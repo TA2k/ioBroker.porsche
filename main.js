@@ -1,4 +1,4 @@
-"use strict";
+'use strict'
 
 /*
  * Created with @iobroker/create-adapter v2.0.1
@@ -6,14 +6,14 @@
 
 // The adapter-core module gives you access to the core ioBroker functions
 // you need to create an adapter
-const utils = require("@iobroker/adapter-core");
-const axios = require("axios").default;
-const qs = require("qs");
-const crypto = require("crypto");
-const Json2iob = require("json2iob");
-const tough = require("tough-cookie");
-const { v4: uuidv4 } = require("uuid");
-const { HttpsCookieAgent } = require("http-cookie-agent/http");
+const utils = require('@iobroker/adapter-core')
+const axios = require('axios').default
+const qs = require('qs')
+const crypto = require('crypto')
+const Json2iob = require('json2iob')
+const tough = require('tough-cookie')
+const { v4: uuidv4 } = require('uuid')
+const { HttpsCookieAgent } = require('http-cookie-agent/http')
 
 class Porsche extends utils.Adapter {
   /**
@@ -22,20 +22,20 @@ class Porsche extends utils.Adapter {
   constructor(options) {
     super({
       ...options,
-      name: "porsche",
-    });
-    this.on("ready", this.onReady.bind(this));
-    this.on("stateChange", this.onStateChange.bind(this));
-    this.on("unload", this.onUnload.bind(this));
-    this.deviceArray = [];
-    this.json2iob = new Json2iob(this);
-    this.lastForceRefresh = 0;
-    this.cookieJar = new tough.CookieJar();
+      name: 'porsche',
+    })
+    this.on('ready', this.onReady.bind(this))
+    this.on('stateChange', this.onStateChange.bind(this))
+    this.on('unload', this.onUnload.bind(this))
+    this.deviceArray = []
+    this.json2iob = new Json2iob(this)
+    this.lastForceRefresh = 0
+    this.cookieJar = new tough.CookieJar()
     this.requestClient = axios.create({
       withCredentials: true,
       httpsAgent: new HttpsCookieAgent({ cookies: { jar: this.cookieJar } }),
-    });
-    this.userAgent = "ioBroker";
+    })
+    this.userAgent = 'ioBroker'
   }
 
   /**
@@ -43,377 +43,398 @@ class Porsche extends utils.Adapter {
    */
   async onReady() {
     // Reset the connection indicator during startup
-    this.setState("info.connection", false, true);
+    this.setState('info.connection', false, true)
     if (this.config.interval < 0.5) {
-      this.log.info("Set interval to minimum 0.5");
-      this.config.interval = 0.5;
+      this.log.info('Set interval to minimum 0.5')
+      this.config.interval = 0.5
     }
     if (!this.config.username || !this.config.password) {
-      this.log.error("Please set username and password in the instance settings");
-      return;
+      this.log.error('Please set username and password in the instance settings')
+      return
     }
-    this.userAgent = "ioBroker v" + this.version;
-    this.updateInterval = null;
-    this.reLoginTimeout = null;
-    this.refreshTokenTimeout = null;
-    this.session = {};
-    this.subscribeStates("*");
+    this.userAgent = 'ioBroker v' + this.version
+    this.updateInterval = null
+    this.reLoginTimeout = null
+    this.refreshTokenTimeout = null
+    this.session = {}
+    this.subscribeStates('*')
 
-    await this.login();
+    await this.login()
 
     if (this.session.access_token) {
-      await this.getDeviceList();
-      await this.updateDevices(true);
+      await this.getDeviceList()
+      await this.updateDevices(true)
       this.updateInterval = setInterval(async () => {
-        await this.updateDevices();
-      }, this.config.interval * 60 * 1000);
+        await this.updateDevices()
+      }, this.config.interval * 60 * 1000)
       this.refreshTokenInterval = setInterval(() => {
-        this.refreshToken();
-      }, this.session.expires_in * 1000);
+        this.refreshToken()
+      }, this.session.expires_in * 1000)
     }
   }
   async login() {
-    const [code_verifier, codeChallenge] = this.getCodeChallenge();
+    const [code_verifier, codeChallenge] = this.getCodeChallenge()
     const loginForm = await this.requestClient({
-      method: "get",
+      method: 'get',
       url:
-        "https://identity.porsche.com/authorize?scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&state=fON6XJsh6rdKOGTpCjY7W2lFmj25rpXbNVsi-sM7JZ0&prompt=login&ext-country=DE&device=touch&audience=https://api.porsche.com&redirect_uri=my-porsche-app://auth0/callback&ui_locales=de-DE&response_type=code&client_id=XhygisuebbrqQ80byOuU5VncxLIm8E6H&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9&code_challenge=" +
+        'https://identity.porsche.com/authorize?scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&state=fON6XJsh6rdKOGTpCjY7W2lFmj25rpXbNVsi-sM7JZ0&prompt=login&ext-country=DE&device=touch&audience=https://api.porsche.com&redirect_uri=my-porsche-app://auth0/callback&ui_locales=de-DE&response_type=code&client_id=XhygisuebbrqQ80byOuU5VncxLIm8E6H&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9&code_challenge=' +
         codeChallenge,
       headers: {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "de-de",
-        "User-Agent": this.userAgent,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'de-de',
+        'User-Agent': this.userAgent,
       },
     })
       .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        return res.data;
+        this.log.debug(JSON.stringify(res.data))
+
+        return qs.parse(res.request.path.split('?')[1])
       })
       .catch((error) => {
-        this.log.error(error);
+        this.log.error(error)
         if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
+          this.log.error(JSON.stringify(error.response.data))
         }
-      });
-    const form = this.extractHidden(loginForm);
-    form.username = this.config.username;
-    form.password = this.config.password;
+      })
+
+    const form = {
+      client_id: 'XhygisuebbrqQ80byOuU5VncxLIm8E6H',
+      redirect_uri: 'my-porsche-app://auth0/callback',
+      tenant: 'porsche-production',
+      response_type: 'code',
+      scope:
+        'openid profile email offline_access mbb ssodb badge vin dealers cars charging manageCharging plugAndCharge climatisation manageClimatisation',
+      audience: 'https://api.porsche.com',
+      _csrf: 'W9GKLbes-mOlocBxi_VKMKhCu0z6VYRZ8aKY',
+      state: loginForm.state,
+      _intstate: 'deprecated',
+      username: this.config.username,
+      password: this.config.password,
+      connection: 'Username-Password-Authentication',
+    }
+
     const callBackForm = await this.requestClient({
-      method: "post",
+      method: 'post',
       maxBodyLength: Infinity,
-      url: "https://identity.porsche.com/usernamepassword/login",
+      url: 'https://identity.porsche.com/usernamepassword/login',
       headers: {
-        Host: "identity.porsche.com",
-        Accept: "*/*",
-        "Accept-Language": "de-de",
-        "Content-Type": "application/json",
-        Origin: "https://identity.porsche.com",
-        "User-Agent":
-          "Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
+        Host: 'identity.porsche.com',
+        Accept: '*/*',
+        'Accept-Language': 'de-de',
+        'Content-Type': 'application/json',
+        Origin: 'https://identity.porsche.com',
+        'User-Agent':
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
         Referer:
-          "https://identity.porsche.com/login?state=hKFo2SAyaGk3ekotaUlQUjJXVG9Cb2FBcElTbnFWbXlkVjY0daFupWxvZ2luo3RpZNkgRzZXY2V6VUZEekV6S2lrVVVqOWZwYmNiWUFlQ2RTcjGjY2lk2SBYaHlnaXN1ZWJicnFRODBieU91VTVWbmN4TEltOEU2SA&client=XhygisuebbrqQ80byOuU5VncxLIm8E6H&protocol=oauth2&prompt=login&scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&code_challenge=ahY5AgeOVTblwLSCX3bhJMgn33VHGM8sNgA6eqbJ54k&ext-country=DE&device=touch&audience=https%3A%2F%2Fapi.porsche.com&redirect_uri=my-porsche-app%3A%2F%2Fauth0%2Fcallback&ui_locales=de-DE&response_type=code&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9",
-        "Auth0-Client": "eyJuYW1lIjoiYXV0aDAuanMtdWxwIiwidmVyc2lvbiI6IjkuMjAuMiJ9",
+          'https://identity.porsche.com/login?state=hKFo2SAyaGk3ekotaUlQUjJXVG9Cb2FBcElTbnFWbXlkVjY0daFupWxvZ2luo3RpZNkgRzZXY2V6VUZEekV6S2lrVVVqOWZwYmNiWUFlQ2RTcjGjY2lk2SBYaHlnaXN1ZWJicnFRODBieU91VTVWbmN4TEltOEU2SA&client=XhygisuebbrqQ80byOuU5VncxLIm8E6H&protocol=oauth2&prompt=login&scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&code_challenge=ahY5AgeOVTblwLSCX3bhJMgn33VHGM8sNgA6eqbJ54k&ext-country=DE&device=touch&audience=https%3A%2F%2Fapi.porsche.com&redirect_uri=my-porsche-app%3A%2F%2Fauth0%2Fcallback&ui_locales=de-DE&response_type=code&code_challenge_method=S256&auth0Client=eyJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsic3dpZnQiOiI1LngiLCJpT1MiOiIxNC44In0sIm5hbWUiOiJBdXRoMC5zd2lmdCJ9',
+        'Auth0-Client': 'eyJuYW1lIjoiYXV0aDAuanMtdWxwIiwidmVyc2lvbiI6IjkuMjAuMiJ9',
         Cookie:
-          "_csrf=-CfLqCsloDbPsZzDyRgKXhjK; did=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U; did_compat=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U",
+          '_csrf=-CfLqCsloDbPsZzDyRgKXhjK; did=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U; did_compat=s%3Av0%3Aaf8c61b0-1e94-11ee-b0c0-2f2fc02d0677.S3U%2Fk8Vbk79Zc08FWoUT4WWH%2Bc0ayPiPxHaHz%2BSUF1U',
       },
       data: JSON.stringify(form),
     })
       .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        return res.data;
+        this.log.debug(JSON.stringify(res.data))
+        const form = this.extractHidden(res.data)
+        delete form.undefined
+        form.wctx = form.wctx.replace(/&#34;/g, '"')
+        return form
       })
       .catch((error) => {
-        this.log.error(error);
+        this.log.error(error)
         if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
+          this.log.error(JSON.stringify(error.response.data))
         }
-      });
+      })
 
-  const submitForm = this.extractHidden(callBackForm);
-
-    const code = await this.requestClient({
-      method: "post",
-      url:"https://identity.porsche.com/login/callback"
+    const parameters = await this.requestClient({
+      method: 'post',
+      url: 'https://identity.porsche.com/login/callback',
       headers: {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "de-de",
-        "User-Agent": this.userAgent,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'de-de',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': this.userAgent,
       },
-     data: qs.stringify(form),
+      data: callBackForm,
     })
       .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        this.log.debug(res.request.path);
-        return;
+        this.log.error(JSON.stringify(res.data))
+        this.log.error(res.request.path)
+        return
       })
       .catch((error) => {
-        if (error.response && error.response.status === 302) {
-          return error.response.headers.location.split("code=")[1];
+        if (error.message && error.message.includes('Unsupported protocol')) {
+          if (error.config) {
+            this.log.debug(JSON.stringify(error.config.url))
+            const parameters = qs.parse(error.request._options.path.split('?')[1])
+            this.log.debug(JSON.stringify(parameters))
+            return parameters
+          }
         }
-
-        this.log.error(error);
+        this.log.error(error)
         if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
+          this.log.error(JSON.stringify(error.response.data))
         }
-      });
+      })
 
     await this.requestClient({
-      method: "post",
-      url: "https://identity.porsche.com/oauth/token",
+      method: 'post',
+      url: 'https://identity.porsche.com/oauth/token',
       headers: {
-        Accept: "*/*",
-        "User-Agent": this.userAgent,
-        "Accept-Language": "de",
-        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: '*/*',
+        'User-Agent': this.userAgent,
+        'Accept-Language': 'de',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
       data: qs.stringify({
-        client_id: "XhygisuebbrqQ80byOuU5VncxLIm8E6H",
-        code: code,
+        client_id: 'XhygisuebbrqQ80byOuU5VncxLIm8E6H',
+        code: parameters.code,
         code_verifier: code_verifier,
-        grant_type: "authorization_code",
-        redirect_uri: "my-porsche-app:\/\/auth0\/callback",
+        grant_type: 'authorization_code',
+        redirect_uri: 'my-porsche-app://auth0/callback',
       }),
     })
       .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        this.session = res.data;
-        this.setState("info.connection", true, true);
+        this.log.debug(JSON.stringify(res.data))
+        this.session = res.data
+        this.setState('info.connection', true, true)
       })
       .catch((error) => {
-        this.log.error(error);
+        this.log.error(error)
         if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
+          this.log.error(JSON.stringify(error.response.data))
         }
-      });
+      })
   }
   extractHidden(body) {
-    const returnObject = {};
-    const matches = body.matchAll(/<input (?=[^>]* name=["']([^'"]*)|)(?=[^>]* value=["']([^'"]*)|)/g);
+    const returnObject = {}
+    const matches = body.matchAll(/<input (?=[^>]* name=["']([^'"]*)|)(?=[^>]* value=["']([^'"]*)|)/g)
     for (const match of matches) {
       if (match[2] != null) {
-        returnObject[match[1]] = match[2];
+        returnObject[match[1]] = match[2]
       }
     }
-    return returnObject;
+    return returnObject
   }
   async getDeviceList() {
     await this.requestClient({
-      method: "get",
-      url: "https://api.ppa.porsche.com/app/connect/v1/vehicles",
+      method: 'get',
+      url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles',
       headers: {
-        accept: "*/*",
-        "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
-        authorization: "Bearer " + this.session.access_token,
-        "user-agent": this.userAgent,
-        "accept-language": "de",
+        accept: '*/*',
+        'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+        authorization: 'Bearer ' + this.session.access_token,
+        'user-agent': this.userAgent,
+        'accept-language': 'de',
       },
     })
       .then(async (res) => {
-        this.log.debug(JSON.stringify(res.data));
+        this.log.debug(JSON.stringify(res.data))
 
         for (const device of res.data) {
-          this.deviceArray.push(device.vin);
-          let name = device.modelName;
+          this.deviceArray.push(device.vin)
+          let name = device.modelName
           if (device.customName) {
-            name += " " + device.customName;
+            name += ' ' + device.customName
           }
           await this.setObjectNotExistsAsync(device.vin, {
-            type: "device",
+            type: 'device',
             common: {
               name: name,
             },
             native: {},
-          });
-          await this.setObjectNotExistsAsync(device.vin + ".remote", {
-            type: "channel",
+          })
+          await this.setObjectNotExistsAsync(device.vin + '.remote', {
+            type: 'channel',
             common: {
-              name: "Remote Controls",
+              name: 'Remote Controls',
             },
             native: {},
-          });
-          await this.setObjectNotExistsAsync(device.vin + ".general", {
-            type: "channel",
+          })
+          await this.setObjectNotExistsAsync(device.vin + '.general', {
+            type: 'channel',
             common: {
-              name: "General Information",
+              name: 'General Information',
             },
             native: {},
-          });
+          })
 
           const remoteArray = [
-            { command: "REMOTE_HEATING_START", name: "True = Start" },
-            { command: "REMOTE_CLIMATIZER-temperature", name: "REMOTE_CLIMATIZER Temperature", type: "number", role: "value" },
-            { command: "REMOTE_HEATING_STOP", name: "True = Stop" },
-            { command: "REMOTE_ACV_START", name: "True = Start" },
-            { command: "REMOTE_ACV_STOP", name: "True = Stop" },
-            { command: "REMOTE_CLIMATIZER_START", name: "True = Start" },
-            { command: "REMOTE_CLIMATIZER_STOP", name: "True = Stop" },
-            { command: "LOCK", name: "True = Lokc" },
-            { command: "UNLOCK", name: "True = Unlock" },
-            { command: "Refresh", name: "True = Refresh" },
-            { command: "Force_Refresh", name: "True = Force Refresh" },
-          ];
+            { command: 'REMOTE_HEATING_START', name: 'True = Start' },
+            { command: 'REMOTE_CLIMATIZER-temperature', name: 'REMOTE_CLIMATIZER Temperature', type: 'number', role: 'value' },
+            { command: 'REMOTE_HEATING_STOP', name: 'True = Stop' },
+            { command: 'REMOTE_ACV_START', name: 'True = Start' },
+            { command: 'REMOTE_ACV_STOP', name: 'True = Stop' },
+            { command: 'REMOTE_CLIMATIZER_START', name: 'True = Start' },
+            { command: 'REMOTE_CLIMATIZER_STOP', name: 'True = Stop' },
+            { command: 'LOCK', name: 'True = Lokc' },
+            { command: 'UNLOCK', name: 'True = Unlock' },
+            { command: 'Refresh', name: 'True = Refresh' },
+            { command: 'Force_Refresh', name: 'True = Force Refresh' },
+          ]
           remoteArray.forEach((remote) => {
-            this.setObjectNotExists(device.vin + ".remote." + remote.command, {
-              type: "state",
+            this.setObjectNotExists(device.vin + '.remote.' + remote.command, {
+              type: 'state',
               common: {
-                name: remote.name || "",
-                type: remote.type || "boolean",
-                role: remote.role || "boolean",
+                name: remote.name || '',
+                type: remote.type || 'boolean',
+                role: remote.role || 'boolean',
                 write: true,
                 read: true,
               },
               native: {},
-            });
-          });
-          this.json2iob.parse(device.vin + ".general", device);
+            })
+          })
+          this.json2iob.parse(device.vin + '.general', device)
           await this.requestClient({
-            method: "get",
-            url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/" + device.vin + "/pictures",
+            method: 'get',
+            url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles/' + device.vin + '/pictures',
             headers: {
-              accept: "*/*",
-              "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
-              authorization: "Bearer " + this.session.access_token,
-              "user-agent": this.userAgent,
-              "accept-language": "de",
+              accept: '*/*',
+              'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+              authorization: 'Bearer ' + this.session.access_token,
+              'user-agent': this.userAgent,
+              'accept-language': 'de',
             },
           })
             .then(async (res) => {
-              this.log.debug(JSON.stringify(res.data));
-              this.json2iob.parse(device.vin + ".pictures", res.data, { preferedArrayName: "view" });
+              this.log.debug(JSON.stringify(res.data))
+              this.json2iob.parse(device.vin + '.pictures', res.data, { preferedArrayName: 'view' })
             })
             .catch((error) => {
-              this.log.error(error);
-              error.response && this.log.error(JSON.stringify(error.response.data));
-            });
+              this.log.error(error)
+              error.response && this.log.error(JSON.stringify(error.response.data))
+            })
         }
       })
       .catch((error) => {
-        this.log.error(error);
-        error.response && this.log.error(JSON.stringify(error.response.data));
-      });
+        this.log.error(error)
+        error.response && this.log.error(JSON.stringify(error.response.data))
+      })
   }
 
   async updateDevices(forceRefresh) {
     if (Date.now() - this.lastForceRefresh > 1000 * 60 * 60 * 3) {
       // force refresh every 3 hour
-      forceRefresh = true;
+      forceRefresh = true
     }
 
-    this.lastForceRefresh = Date.now();
+    this.lastForceRefresh = Date.now()
     let url =
-      "https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=ACV_STATE&mf=BATTERY_CHARGING_STATE&mf=BATTERY_LEVEL&mf=BATTERY_TYPE&mf=BLEID_DDADATA&mf=CAR_ALARMS_HISTORY&mf=CHARGING_PROFILES&mf=CLIMATIZER_STATE&mf=E_CONSUMPTION_DATA&mf=E_RANGE&mf=FUEL_LEVEL&mf=FUEL_RESERVE&mf=GLOBAL_PRIVACY_MODE&mf=GPS_LOCATION&mf=HEATING_STATE&mf=INTERMEDIATE_SERVICE_RANGE&mf=INTERMEDIATE_SERVICE_TIME&mf=LOCATION_ALARMS&mf=LOCATION_ALARMS_HISTORY&mf=LOCK_STATE_VEHICLE&mf=MAIN_SERVICE_RANGE&mf=MAIN_SERVICE_TIME&mf=MILEAGE&mf=OIL_LEVEL_CURRENT&mf=OIL_LEVEL_MAX&mf=OIL_LEVEL_MIN_WARNING&mf=OIL_SERVICE_RANGE&mf=OIL_SERVICE_TIME&mf=OPEN_STATE_CHARGE_FLAP_LEFT&mf=OPEN_STATE_CHARGE_FLAP_RIGHT&mf=OPEN_STATE_DOOR_FRONT_LEFT&mf=OPEN_STATE_DOOR_FRONT_RIGHT&mf=OPEN_STATE_DOOR_REAR_LEFT&mf=OPEN_STATE_DOOR_REAR_RIGHT&mf=OPEN_STATE_LID_FRONT&mf=OPEN_STATE_LID_REAR&mf=OPEN_STATE_SERVICE_FLAP&mf=OPEN_STATE_SPOILER&mf=OPEN_STATE_SUNROOF&mf=OPEN_STATE_TOP&mf=OPEN_STATE_WINDOW_FRONT_LEFT&mf=OPEN_STATE_WINDOW_FRONT_RIGHT&mf=OPEN_STATE_WINDOW_REAR_LEFT&mf=OPEN_STATE_WINDOW_REAR_RIGHT&mf=PARKING_LIGHT&mf=RANGE&mf=REMOTE_ACCESS_AUTHORIZATION&mf=SERVICE_PREDICTIONS&mf=SPEED_ALARMS&mf=SPEED_ALARMS_HISTORY&mf=THEFT_MODE&mf=TIMERS&mf=TIRE_PRESSURE&mf=TRIP_STATISTICS_CYCLIC&mf=TRIP_STATISTICS_LONG_TERM&mf=TRIP_STATISTICS_LONG_TERM_HISTORY&mf=TRIP_STATISTICS_SHORT_TERM&mf=VALET_ALARM&mf=VALET_ALARM_HISTORY&mf=VTS_MODES";
+      'https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=ACV_STATE&mf=BATTERY_CHARGING_STATE&mf=BATTERY_LEVEL&mf=BATTERY_TYPE&mf=BLEID_DDADATA&mf=CAR_ALARMS_HISTORY&mf=CHARGING_PROFILES&mf=CLIMATIZER_STATE&mf=E_CONSUMPTION_DATA&mf=E_RANGE&mf=FUEL_LEVEL&mf=FUEL_RESERVE&mf=GLOBAL_PRIVACY_MODE&mf=GPS_LOCATION&mf=HEATING_STATE&mf=INTERMEDIATE_SERVICE_RANGE&mf=INTERMEDIATE_SERVICE_TIME&mf=LOCATION_ALARMS&mf=LOCATION_ALARMS_HISTORY&mf=LOCK_STATE_VEHICLE&mf=MAIN_SERVICE_RANGE&mf=MAIN_SERVICE_TIME&mf=MILEAGE&mf=OIL_LEVEL_CURRENT&mf=OIL_LEVEL_MAX&mf=OIL_LEVEL_MIN_WARNING&mf=OIL_SERVICE_RANGE&mf=OIL_SERVICE_TIME&mf=OPEN_STATE_CHARGE_FLAP_LEFT&mf=OPEN_STATE_CHARGE_FLAP_RIGHT&mf=OPEN_STATE_DOOR_FRONT_LEFT&mf=OPEN_STATE_DOOR_FRONT_RIGHT&mf=OPEN_STATE_DOOR_REAR_LEFT&mf=OPEN_STATE_DOOR_REAR_RIGHT&mf=OPEN_STATE_LID_FRONT&mf=OPEN_STATE_LID_REAR&mf=OPEN_STATE_SERVICE_FLAP&mf=OPEN_STATE_SPOILER&mf=OPEN_STATE_SUNROOF&mf=OPEN_STATE_TOP&mf=OPEN_STATE_WINDOW_FRONT_LEFT&mf=OPEN_STATE_WINDOW_FRONT_RIGHT&mf=OPEN_STATE_WINDOW_REAR_LEFT&mf=OPEN_STATE_WINDOW_REAR_RIGHT&mf=PARKING_LIGHT&mf=RANGE&mf=REMOTE_ACCESS_AUTHORIZATION&mf=SERVICE_PREDICTIONS&mf=SPEED_ALARMS&mf=SPEED_ALARMS_HISTORY&mf=THEFT_MODE&mf=TIMERS&mf=TIRE_PRESSURE&mf=TRIP_STATISTICS_CYCLIC&mf=TRIP_STATISTICS_LONG_TERM&mf=TRIP_STATISTICS_LONG_TERM_HISTORY&mf=TRIP_STATISTICS_SHORT_TERM&mf=VALET_ALARM&mf=VALET_ALARM_HISTORY&mf=VTS_MODES'
 
     if (forceRefresh) {
-      url += "&wakeUpJob=" + uuidv4();
+      url += '&wakeUpJob=' + uuidv4()
     }
     const statusArray = [
       {
-        path: "status",
+        path: 'status',
         url: url,
-        desc: "Status of the car",
+        desc: 'Status of the car',
       },
-    ];
+    ]
 
     const headers = {
-      accept: "*/*",
-      "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
-      authorization: "Bearer " + this.session.access_token,
-      "user-agent": this.userAgent,
-      "accept-language": "de",
-    };
+      accept: '*/*',
+      'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+      authorization: 'Bearer ' + this.session.access_token,
+      'user-agent': this.userAgent,
+      'accept-language': 'de',
+    }
     for (const vin of this.deviceArray) {
       for (const element of statusArray) {
-        const url = element.url.replace("$vin", vin);
+        const url = element.url.replace('$vin', vin)
 
         await this.requestClient({
-          method: "get",
+          method: 'get',
           url: url,
           headers: headers,
         })
           .then((res) => {
-            this.log.debug(JSON.stringify(res.data));
+            this.log.debug(JSON.stringify(res.data))
             if (!res.data) {
-              return;
+              return
             }
-            const data = res.data;
+            const data = res.data
 
-            const forceIndex = null;
-            const preferedArrayName = null;
+            const forceIndex = null
+            const preferedArrayName = null
 
-            this.json2iob.parse(vin + "." + element.path, data, {
+            this.json2iob.parse(vin + '.' + element.path, data, {
               forceIndex: forceIndex,
               preferedArrayName: preferedArrayName,
               channelName: element.desc,
-            });
+            })
           })
           .catch((error) => {
             if (error.response) {
               if (error.response.status === 401) {
-                error.response && this.log.debug(JSON.stringify(error.response.data));
-                this.log.info(element.path + " receive 401 error. Refresh Token in 60 seconds");
-                this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout);
+                error.response && this.log.debug(JSON.stringify(error.response.data))
+                this.log.info(element.path + ' receive 401 error. Refresh Token in 60 seconds')
+                this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout)
                 this.refreshTokenTimeout = setTimeout(() => {
-                  this.refreshToken();
-                }, 1000 * 60);
+                  this.refreshToken()
+                }, 1000 * 60)
 
-                return;
+                return
               }
             }
-            this.log.error(url);
-            this.log.error(error);
-            error.response && this.log.error(JSON.stringify(error.response.data));
-          });
+            this.log.error(url)
+            this.log.error(error)
+            error.response && this.log.error(JSON.stringify(error.response.data))
+          })
       }
     }
   }
   async refreshToken() {
     if (!this.session) {
-      this.log.error("No session found relogin");
-      await this.login();
-      return;
+      this.log.error('No session found relogin')
+      await this.login()
+      return
     }
     await this.requestClient({
-      method: "post",
-      url: "https://login.porsche.com/as/token.oauth2",
+      method: 'post',
+      url: 'https://identity.porsche.com/oauth/token',
       headers: {
-        Accept: "*/*",
-        "User-Agent": this.userAgent,
-        "Accept-Language": "de",
-        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: '*/*',
+        'User-Agent': this.userAgent,
+        'Accept-Language': 'de',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
       data: qs.stringify({
-        client_id: "L20OiZ0kBgWt958NWbuCB8gb970y6V6U",
-        grant_type: "refresh_token",
+        client_id: 'XhygisuebbrqQ80byOuU5VncxLIm8E6H',
+        grant_type: 'refresh_token',
         refresh_token: this.session.refresh_token,
       }),
     })
       .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        this.session = res.data;
-        this.setState("info.connection", true, true);
+        this.log.debug(JSON.stringify(res.data))
+        this.session = res.data
+        this.setState('info.connection', true, true)
       })
       .catch((error) => {
-        this.log.error("refresh token failed");
-        this.log.error(error);
-        error.response && this.log.error(JSON.stringify(error.response.data));
-        this.log.error("Start relogin in 1min");
-        this.reLoginTimeout && clearTimeout(this.reLoginTimeout);
+        this.log.error('refresh token failed')
+        this.log.error(error)
+        error.response && this.log.error(JSON.stringify(error.response.data))
+        this.log.error('Start relogin in 1min')
+        this.reLoginTimeout && clearTimeout(this.reLoginTimeout)
         this.reLoginTimeout = setTimeout(() => {
-          this.login();
-        }, 1000 * 60 * 1);
-      });
+          this.login()
+        }, 1000 * 60 * 1)
+      })
   }
 
   getCodeChallenge() {
-    let hash = "";
-    let result = "";
-    const chars = "0123456789abcdef";
-    result = "";
-    for (let i = 64; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
-    hash = crypto.createHash("sha256").update(result).digest("base64");
-    hash = hash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    let hash = ''
+    let result = ''
+    const chars = '0123456789abcdef'
+    result = ''
+    for (let i = 64; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)]
+    hash = crypto.createHash('sha256').update(result).digest('base64')
+    hash = hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 
-    return [result, hash];
+    return [result, hash]
   }
   /**
    * Is called when adapter shuts down - callback has to be called under any circumstances!
@@ -421,15 +442,15 @@ class Porsche extends utils.Adapter {
    */
   onUnload(callback) {
     try {
-      this.setState("info.connection", false, true);
-      this.refreshTimeout && clearTimeout(this.refreshTimeout);
-      this.reLoginTimeout && clearTimeout(this.reLoginTimeout);
-      this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout);
-      this.updateInterval && clearInterval(this.updateInterval);
-      this.refreshTokenInterval && clearInterval(this.refreshTokenInterval);
-      callback();
+      this.setState('info.connection', false, true)
+      this.refreshTimeout && clearTimeout(this.refreshTimeout)
+      this.reLoginTimeout && clearTimeout(this.reLoginTimeout)
+      this.refreshTokenTimeout && clearTimeout(this.refreshTokenTimeout)
+      this.updateInterval && clearInterval(this.updateInterval)
+      this.refreshTokenInterval && clearInterval(this.refreshTokenInterval)
+      callback()
     } catch (e) {
-      callback();
+      callback()
     }
   }
 
@@ -441,63 +462,63 @@ class Porsche extends utils.Adapter {
   async onStateChange(id, state) {
     if (state) {
       if (!state.ack) {
-        const deviceId = id.split(".")[2];
-        const command = id.split(".")[4];
-        if (id.split(".")[3] !== "remote") {
-          return;
+        const deviceId = id.split('.')[2]
+        const command = id.split('.')[4]
+        if (id.split('.')[3] !== 'remote') {
+          return
         }
-        if (command === "REMOTE_CLIMATIZER-temperature") {
-          return;
+        if (command === 'REMOTE_CLIMATIZER-temperature') {
+          return
         }
-        if (command === "Refresh") {
-          this.updateDevices();
+        if (command === 'Refresh') {
+          this.updateDevices()
         }
-        if (command === "Force_Refresh") {
-          this.updateDevices(true);
+        if (command === 'Force_Refresh') {
+          this.updateDevices(true)
         }
 
         const data = {
           payload: {},
           key: command,
-        };
-        if (command === "REMOTE_CLIMATIZER_START") {
-          const temperatureState = await this.getStateAsync(deviceId + ".remote.REMOTE_CLIMATIZER-temperature");
+        }
+        if (command === 'REMOTE_CLIMATIZER_START') {
+          const temperatureState = await this.getStateAsync(deviceId + '.remote.REMOTE_CLIMATIZER-temperature')
           if (temperatureState) {
-            data.payload.temperature = temperatureState.val ? temperatureState.val : 22;
+            data.payload.temperature = temperatureState.val ? temperatureState.val : 22
           } else {
-            data.payload.temperature = 22;
+            data.payload.temperature = 22
           }
         }
 
-        this.log.debug(JSON.stringify(data));
+        this.log.debug(JSON.stringify(data))
 
         await this.requestClient({
-          method: "post",
-          url: "https://api.ppa.porsche.com/app/connect/v1/vehicles/" + deviceId + "/commands",
+          method: 'post',
+          url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles/' + deviceId + '/commands',
           headers: {
-            accept: "*/*",
-            "x-client-id": "52064df8-6daa-46f7-bc9e-e3232622ab26",
-            "content-type": "application/json",
-            "accept-language": "de",
-            authorization: "Bearer " + this.session.access_token,
-            "user-agent": this.userAgent,
+            accept: '*/*',
+            'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+            'content-type': 'application/json',
+            'accept-language': 'de',
+            authorization: 'Bearer ' + this.session.access_token,
+            'user-agent': this.userAgent,
           },
           data: data,
         })
           .then((res) => {
-            this.log.info(JSON.stringify(res.data));
-            return res.data;
+            this.log.info(JSON.stringify(res.data))
+            return res.data
           })
           .catch((error) => {
-            this.log.error(error);
+            this.log.error(error)
             if (error.response) {
-              this.log.error(JSON.stringify(error.response.data));
+              this.log.error(JSON.stringify(error.response.data))
             }
-          });
-        this.refreshTimeout && clearTimeout(this.refreshTimeout);
+          })
+        this.refreshTimeout && clearTimeout(this.refreshTimeout)
         this.refreshTimeout = setTimeout(async () => {
-          await this.updateDevices();
-        }, 10 * 1000);
+          await this.updateDevices()
+        }, 10 * 1000)
       }
     }
   }
@@ -508,8 +529,8 @@ if (require.main !== module) {
   /**
    * @param {Partial<utils.AdapterOptions>} [options={}]
    */
-  module.exports = (options) => new Porsche(options);
+  module.exports = (options) => new Porsche(options)
 } else {
   // otherwise start the instance directly
-  new Porsche();
+  new Porsche()
 }
