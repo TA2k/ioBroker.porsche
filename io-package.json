@@ -1,8 +1,11 @@
 {
   "common": {
     "name": "porsche",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "news": {
+      "0.2.0": {
+        "en": "fix login"
+      },
       "0.1.0": {
         "en": "fix login"
       },
