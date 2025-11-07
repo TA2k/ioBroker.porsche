@@ -60,6 +60,7 @@
     "extIcon": "https://raw.githubusercontent.com/TA2k/ioBroker.porsche/master/admin/porsche.png",
     "readme": "https://github.com/TA2k/ioBroker.porsche/blob/master/README.md",
     "loglevel": "info",
+    "tier": 2,
     "mode": "daemon",
     "type": "vehicle",
     "compact": true,
