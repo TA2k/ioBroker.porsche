@@ -9,7 +9,6 @@
 const utils = require('@iobroker/adapter-core');
 const axios = require('axios').default;
 const qs = require('qs');
-const crypto = require('crypto');
 const Json2iob = require('json2iob');
 const tough = require('tough-cookie');
 const { v4: uuidv4 } = require('uuid');
@@ -35,7 +34,11 @@ class Porsche extends utils.Adapter {
       withCredentials: true,
       httpsAgent: new HttpsCookieAgent({ cookies: { jar: this.cookieJar } }),
     });
-    this.userAgent = 'ioBroker';
+    this.userAgent = 'pyporscheconnectapi/0.2.0';
+    this.clientId = 'XhygisuebbrqQ80byOuU5VncxLIm8E6H';
+    this.xClientId = '41843fb4-691d-4970-85c7-2673e8ecef40';
+    this.redirectUri = 'my-porsche-app://auth0/callback';
+    this.scope = 'openid profile email offline_access mbb ssodb badge vin dealers cars charging manageCharging plugAndCharge climatisation manageClimatisation pid:user_profile.porscheid:read pid:user_profile.name:read pid:user_profile.vehicles:read pid:user_profile.dealers:read pid:user_profile.emails:read pid:user_profile.phones:read pid:user_profile.addresses:read pid:user_profile.birthdate:read pid:user_profile.locale:read pid:user_profile.legal:read';
   }
 
   /**
@@ -73,116 +76,219 @@ class Porsche extends utils.Adapter {
     }
   }
   async login() {
-    const [code_verifier, codeChallenge] = this.getCodeChallenge();
-    const loginForm = await this.requestClient({
-      method: 'get',
-      url:
-        'https://identity.porsche.com/authorize?scope=openid%20profile%20email%20offline_access%20mbb%20ssodb%20badge%20vin%20dealers%20cars%20charging%20manageCharging%20plugAndCharge%20climatisation%20manageClimatisation&code_challenge_method=S256&device=touch&redirect_uri=my-porsche-app://auth0/callback&client_id=XhygisuebbrqQ80byOuU5VncxLIm8E6H&prompt=login&response_type=code&code_challenge=' +
-        codeChallenge +
-        '&ext-country=DE&audience=https://api.porsche.com&state=tCujKe54DVDekKxoq4kId2tr2jCY3baew-OmFRozElo&ui_locales=de-DE&auth0Client=eyJuYW1lIjoiQXV0aDAuc3dpZnQiLCJ2ZXJzaW9uIjoiMi4zLjIiLCJlbnYiOnsiaU9TIjoiMTQuOCIsInN3aWZ0IjoiNS54In19',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'de-de',
-        'User-Agent': this.userAgent,
-      },
-    })
-      .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
+    const headers = {
+      'User-Agent': this.userAgent,
+      'X-Client-ID': this.xClientId,
+    };
 
-        return qs.parse(res.request.path.split('?')[1]);
-      })
-      .catch((error) => {
-        this.log.error(error);
-        if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
-        }
-      });
-    await this.requestClient({
-      method: 'post',
-      url: 'https://identity.porsche.com/u/login/identifier?state=' + loginForm.state + '&ui_locales=de&ext-country=DE&ext-language=en_GB',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-        'Accept-Language': 'de-de',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      data: {
-        state: loginForm.state,
-        username: this.config.username,
-        'js-available': 'true',
-        'webauthn-available': 'true',
-        'is-brave': 'false',
-        'webauthn-platform-available': 'false',
-        action: 'default',
-      },
-    })
-      .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
+    // Step 1: GET /authorize to get the state parameter
+    let state;
+    try {
+      const authorizeUrl = `https://identity.porsche.com/authorize?response_type=code&client_id=${this.clientId}&redirect_uri=${encodeURIComponent(this.redirectUri)}&audience=${encodeURIComponent('https://api.porsche.com')}&scope=${encodeURIComponent(this.scope)}&state=pyporscheconnectapi`;
 
-        return;
-      })
-      .catch((error) => {
-        this.log.error(error);
-        if (error.response) {
-          this.log.error(JSON.stringify(error.response.data));
-        }
+      const authorizeResponse = await this.requestClient({
+        method: 'get',
+        url: authorizeUrl,
+        headers: headers,
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
       });
-    const parameters = await this.requestClient({
-      method: 'post',
-      url: 'https://identity.porsche.com/u/login/password?state=' + loginForm.state + '&ui_locales=de&ext-country=DE&ext-language=en_GB',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-        'Accept-Language': 'de-de',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      data: {
-        state: loginForm.state,
-        username: this.config.username,
-        password: this.config.password,
-        action: 'default',
-      },
-    })
-      .then((res) => {
-        this.log.debug(JSON.stringify(res.data));
-        return;
-      })
-      .catch((error) => {
-        if (error.message && error.message.includes('Unsupported protocol')) {
-          if (error.config) {
-            this.log.debug(JSON.stringify(error.config.url));
-            const parameters = qs.parse(error.request._options.path.split('?')[1]);
-            this.log.debug(JSON.stringify(parameters));
-            return parameters;
+
+      this.log.debug('Authorize response status: ' + authorizeResponse.status);
+
+      if (authorizeResponse.status === 302) {
+        const location = authorizeResponse.headers.location;
+        this.log.debug('Redirect location: ' + location);
+
+        // Check if we already have an authorization code (existing session)
+        if (location && location.includes('code=')) {
+          const urlParams = new URL(location, 'http://dummy').searchParams;
+          const code = urlParams.get('code');
+          if (code) {
+            this.log.debug('Got authorization code from existing session');
+            await this.exchangeCodeForToken(code, headers);
+            return;
           }
         }
-        this.log.error(error);
+
+        // Extract state from redirect URL
+        const urlParams = new URL(location, 'https://identity.porsche.com').searchParams;
+        state = urlParams.get('state');
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 302) {
+        const location = error.response.headers.location;
+        this.log.debug('Redirect location from error: ' + location);
+        const urlParams = new URL(location, 'https://identity.porsche.com').searchParams;
+        state = urlParams.get('state');
+      } else {
+        this.log.error('Error in authorize request: ' + error);
         if (error.response) {
           this.log.error(JSON.stringify(error.response.data));
         }
-      });
-    if (!parameters || !parameters.code) {
-      this.log.error('No code found. Please check your credentials');
-      this.log.error(JSON.stringify(parameters));
+        return;
+      }
+    }
+
+    if (!state) {
+      this.log.error('No state found in authorize response');
       return;
     }
+
+    this.log.debug('Got state: ' + state);
+
+    // Step 2: POST /u/login/identifier with email
+    try {
+      await this.requestClient({
+        method: 'post',
+        url: 'https://identity.porsche.com/u/login/identifier',
+        params: { state: state },
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data: qs.stringify({
+          state: state,
+          username: this.config.username,
+          'js-available': 'true',
+          'webauthn-available': 'false',
+          'is-brave': 'false',
+          'webauthn-platform-available': 'false',
+          action: 'default',
+        }),
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+      this.log.debug('Identifier step completed');
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        this.log.error('Wrong credentials');
+        return;
+      }
+      if (error.response && error.response.status === 400) {
+        this.log.error('Captcha required - please login via browser first');
+        return;
+      }
+      // 302 redirect is expected, continue
+      if (!error.response || error.response.status !== 302) {
+        this.log.error('Error in identifier step: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    // Step 3: POST /u/login/password with password
+    let resumePath;
+    try {
+      const passwordResponse = await this.requestClient({
+        method: 'post',
+        url: 'https://identity.porsche.com/u/login/password',
+        params: { state: state },
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data: qs.stringify({
+          state: state,
+          username: this.config.username,
+          password: this.config.password,
+          action: 'default',
+        }),
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+
+      if (passwordResponse.status === 302) {
+        resumePath = passwordResponse.headers.location;
+        this.log.debug('Resume path: ' + resumePath);
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 302) {
+        resumePath = error.response.headers.location;
+        this.log.debug('Resume path from error: ' + resumePath);
+      } else if (error.response && error.response.status === 400) {
+        this.log.error('Invalid credentials');
+        return;
+      } else {
+        this.log.error('Error in password step: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    if (!resumePath) {
+      this.log.error('No resume path found after password step');
+      return;
+    }
+
+    // Wait a bit before resuming (as in Python code)
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    // Step 4: Resume the authorization flow
+    let authorizationCode;
+    try {
+      const resumeUrl = resumePath.startsWith('http') ? resumePath : `https://identity.porsche.com${resumePath}`;
+      const resumeResponse = await this.requestClient({
+        method: 'get',
+        url: resumeUrl,
+        headers: headers,
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+
+      if (resumeResponse.status === 302) {
+        const location = resumeResponse.headers.location;
+        this.log.debug('Final redirect location: ' + location);
+
+        if (location && location.includes('code=')) {
+          const urlParams = new URL(location, 'http://dummy').searchParams;
+          authorizationCode = urlParams.get('code');
+        }
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 302) {
+        const location = error.response.headers.location;
+        this.log.debug('Final redirect location from error: ' + location);
+
+        if (location && location.includes('code=')) {
+          const urlParams = new URL(location, 'http://dummy').searchParams;
+          authorizationCode = urlParams.get('code');
+        }
+      } else {
+        this.log.error('Error in resume step: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    if (!authorizationCode) {
+      this.log.error('No authorization code found. Please check your credentials');
+      return;
+    }
+
+    this.log.debug('Got authorization code: ' + authorizationCode);
+    await this.exchangeCodeForToken(authorizationCode, headers);
+  }
+
+  async exchangeCodeForToken(code, headers) {
     await this.requestClient({
       method: 'post',
       url: 'https://identity.porsche.com/oauth/token',
       headers: {
-        Accept: '*/*',
-        'User-Agent': this.userAgent,
-        'Accept-Language': 'de',
+        ...headers,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       data: qs.stringify({
-        client_id: 'XhygisuebbrqQ80byOuU5VncxLIm8E6H',
-        code: parameters.code,
-        code_verifier: code_verifier,
+        client_id: this.clientId,
         grant_type: 'authorization_code',
-        redirect_uri: 'my-porsche-app://auth0/callback',
+        code: code,
+        redirect_uri: this.redirectUri,
       }),
     })
       .then((res) => {
@@ -191,21 +297,11 @@ class Porsche extends utils.Adapter {
         this.setState('info.connection', true, true);
       })
       .catch((error) => {
-        this.log.error(error);
+        this.log.error('Error exchanging code for token: ' + error);
         if (error.response) {
           this.log.error(JSON.stringify(error.response.data));
         }
       });
-  }
-  extractHidden(body) {
-    const returnObject = {};
-    const matches = body.matchAll(/<input (?=[^>]* name=["']([^'"]*)|)(?=[^>]* value=["']([^'"]*)|)/g);
-    for (const match of matches) {
-      if (match[2] != null) {
-        returnObject[match[1]] = match[2];
-      }
-    }
-    return returnObject;
   }
   async getDeviceList() {
     await this.requestClient({
@@ -213,7 +309,7 @@ class Porsche extends utils.Adapter {
       url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles',
       headers: {
         accept: '*/*',
-        'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+        'x-client-id': this.xClientId,
         authorization: 'Bearer ' + this.session.access_token,
         'user-agent': this.userAgent,
         'accept-language': 'de',
@@ -282,7 +378,7 @@ class Porsche extends utils.Adapter {
             url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles/' + device.vin + '/pictures',
             headers: {
               accept: '*/*',
-              'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+              'x-client-id': this.xClientId,
               authorization: 'Bearer ' + this.session.access_token,
               'user-agent': this.userAgent,
               'accept-language': 'de',
@@ -311,8 +407,102 @@ class Porsche extends utils.Adapter {
     }
 
     this.lastForceRefresh = Date.now();
-    let url =
-      'https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=ACV_STATE&mf=BATTERY_CHARGING_STATE&mf=BATTERY_LEVEL&mf=BATTERY_TYPE&mf=BLEID_DDADATA&mf=CAR_ALARMS_HISTORY&mf=CHARGING_PROFILES&mf=CHARGING_SETTINGS&mf=CLIMATIZER_STATE&mf=E_CONSUMPTION_DATA&mf=E_RANGE&mf=FUEL_LEVEL&mf=FUEL_RESERVE&mf=GLOBAL_PRIVACY_MODE&mf=GPS_LOCATION&mf=HEATING_STATE&mf=INTERMEDIATE_SERVICE_RANGE&mf=INTERMEDIATE_SERVICE_TIME&mf=LOCATION_ALARMS&mf=LOCATION_ALARMS_HISTORY&mf=LOCK_STATE_VEHICLE&mf=MAIN_SERVICE_RANGE&mf=MAIN_SERVICE_TIME&mf=MILEAGE&mf=OIL_LEVEL_CURRENT&mf=OIL_LEVEL_MAX&mf=OIL_LEVEL_MIN_WARNING&mf=OIL_SERVICE_RANGE&mf=OIL_SERVICE_TIME&mf=OPEN_STATE_CHARGE_FLAP_LEFT&mf=OPEN_STATE_CHARGE_FLAP_RIGHT&mf=OPEN_STATE_DOOR_FRONT_LEFT&mf=OPEN_STATE_DOOR_FRONT_RIGHT&mf=OPEN_STATE_DOOR_REAR_LEFT&mf=OPEN_STATE_DOOR_REAR_RIGHT&mf=OPEN_STATE_LID_FRONT&mf=OPEN_STATE_LID_REAR&mf=OPEN_STATE_SERVICE_FLAP&mf=OPEN_STATE_SPOILER&mf=OPEN_STATE_SUNROOF&mf=OPEN_STATE_TOP&mf=OPEN_STATE_WINDOW_FRONT_LEFT&mf=OPEN_STATE_WINDOW_FRONT_RIGHT&mf=OPEN_STATE_WINDOW_REAR_LEFT&mf=OPEN_STATE_WINDOW_REAR_RIGHT&mf=PARKING_BRAKE&mf=PARKING_LIGHT&mf=RANGE&mf=REMOTE_ACCESS_AUTHORIZATION&mf=SERVICE_PREDICTIONS&mf=SPEED_ALARMS&mf=SPEED_ALARMS_HISTORY&mf=THEFT_MODE&mf=TIMERS&mf=TIRE_PRESSURE&mf=TRIP_STATISTICS_CYCLIC&mf=TRIP_STATISTICS_LONG_TERM&mf=TRIP_STATISTICS_LONG_TERM_HISTORY&mf=TRIP_STATISTICS_SHORT_TERM&mf=VALET_ALARM&mf=VALET_ALARM_HISTORY&mf=VTS_MODES';
+    // Measurements from official Porsche App (de.porsche.one APK) + legacy measurements
+    const measurements = [
+      'ACV_STATE',
+      'ALARM_STATE',
+      'BATTERY_CHARGING_STATE',
+      'BATTERY_LEVEL',
+      'BATTERY_TYPE',
+      'BEM_LEVEL',
+      'BLEID_DDADATA',
+      'CAR_ALARMS_HISTORY',
+      'CHARGING_PROFILES',
+      'CHARGING_RATE',
+      'CHARGING_SETTINGS',
+      'CHARGING_SUMMARY',
+      'CLIMATIZER_STATE',
+      'DEPARTURES',
+      'DESTINATIONS',
+      'DIRECT_CHARGING',
+      'E_CONSUMPTION_DATA',
+      'E_RANGE',
+      'FUEL_LEVEL',
+      'FUEL_RESERVE',
+      'GLOBAL_PRIVACY_MODE',
+      'GLOBAL_TIMESTAMP',
+      'GPS_LOCATION',
+      'GUIDANCE_SETTINGS',
+      'HEATING_STATE',
+      'HVAC_STATE',
+      'HVAC_SUMMARY',
+      'INTERMEDIATE_SERVICE_RANGE',
+      'INTERMEDIATE_SERVICE_TIME',
+      'LOCATION_ALARMS',
+      'LOCATION_ALARMS_HISTORY',
+      'LOCK_STATE_VEHICLE',
+      'MAIN_SERVICE_RANGE',
+      'MAIN_SERVICE_TIME',
+      'MDK_ACTIVATION_STATE',
+      'MDK_CARD_STATE',
+      'MDK_PAIRING_PASSWORD',
+      'MDK_PAIRING_STATE',
+      'MILEAGE',
+      'OIL_LEVEL_CURRENT',
+      'OIL_LEVEL_MAX',
+      'OIL_LEVEL_MIN_WARNING',
+      'OIL_SERVICE_RANGE',
+      'OIL_SERVICE_TIME',
+      'OPEN_STATE_CHARGE_FLAP_LEFT',
+      'OPEN_STATE_CHARGE_FLAP_RIGHT',
+      'OPEN_STATE_DOOR_FRONT_LEFT',
+      'OPEN_STATE_DOOR_FRONT_RIGHT',
+      'OPEN_STATE_DOOR_REAR_LEFT',
+      'OPEN_STATE_DOOR_REAR_RIGHT',
+      'OPEN_STATE_LID_FRONT',
+      'OPEN_STATE_LID_REAR',
+      'OPEN_STATE_SERVICE_FLAP',
+      'OPEN_STATE_SPOILER',
+      'OPEN_STATE_SUNROOF',
+      'OPEN_STATE_SUNROOF_REAR',
+      'OPEN_STATE_TOP',
+      'OPEN_STATE_WINDOW_FRONT_LEFT',
+      'OPEN_STATE_WINDOW_FRONT_RIGHT',
+      'OPEN_STATE_WINDOW_REAR_LEFT',
+      'OPEN_STATE_WINDOW_REAR_RIGHT',
+      'OTA_CONSENT_STATUS',
+      'OTA_UPDATE_DETAILS',
+      'PAIRING_CODE',
+      'PARKING_BRAKE',
+      'PARKING_LIGHT',
+      'RANGE',
+      'REMOTE_ACCESS_AUTHORIZATION',
+      'SERVICE_PREDICTIONS',
+      'SPEED_ALARMS',
+      'SPEED_ALARMS_HISTORY',
+      'THEFT_MODE',
+      'THEFT_STATE',
+      'TIMERS',
+      'TIMEZONE',
+      'TIRE_PRESSURE',
+      'TIRE_PRESSURE_FRONT_LEFT',
+      'TIRE_PRESSURE_FRONT_RIGHT',
+      'TIRE_PRESSURE_REAR_LEFT',
+      'TIRE_PRESSURE_REAR_RIGHT',
+      'TRIP_STATISTICS_CYCLIC',
+      'TRIP_STATISTICS_CYCLIC_HISTORY',
+      'TRIP_STATISTICS_LONG_TERM',
+      'TRIP_STATISTICS_LONG_TERM_HISTORY',
+      'TRIP_STATISTICS_MONTHLY_REPORT',
+      'TRIP_STATISTICS_SHORT_TERM',
+      'TRIP_STATISTICS_SHORT_TERM_HISTORY',
+      'VALET_ALARM',
+      'VALET_ALARM_HISTORY',
+      'VTS_MODES',
+      'VTS_CERTIFICATE_LIST',
+      'VTS_CONFIGURATION',
+    ];
+    let url = 'https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=' + measurements.join('&mf=');
 
     if (forceRefresh) {
       url += '&wakeUpJob=' + uuidv4();
@@ -327,7 +517,7 @@ class Porsche extends utils.Adapter {
 
     const headers = {
       accept: '*/*',
-      'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+      'x-client-id': this.xClientId,
       authorization: 'Bearer ' + this.session.access_token,
       'user-agent': this.userAgent,
       'accept-language': 'de',
@@ -378,7 +568,7 @@ class Porsche extends utils.Adapter {
     }
   }
   async refreshToken() {
-    if (!this.session) {
+    if (!this.session || !this.session.refresh_token) {
       this.log.error('No session found relogin');
       await this.login();
       return;
@@ -387,13 +577,12 @@ class Porsche extends utils.Adapter {
       method: 'post',
       url: 'https://identity.porsche.com/oauth/token',
       headers: {
-        Accept: '*/*',
         'User-Agent': this.userAgent,
-        'Accept-Language': 'de',
+        'X-Client-ID': this.xClientId,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       data: qs.stringify({
-        client_id: 'XhygisuebbrqQ80byOuU5VncxLIm8E6H',
+        client_id: this.clientId,
         grant_type: 'refresh_token',
         refresh_token: this.session.refresh_token,
       }),
@@ -407,6 +596,7 @@ class Porsche extends utils.Adapter {
         this.log.error('refresh token failed');
         this.log.error(error);
         error.response && this.log.error(JSON.stringify(error.response.data));
+        // 403 means refresh token is invalid, need full relogin
         this.log.error('Start relogin in 1min');
         this.reLoginTimeout && clearTimeout(this.reLoginTimeout);
         this.reLoginTimeout = setTimeout(() => {
@@ -415,17 +605,6 @@ class Porsche extends utils.Adapter {
       });
   }
 
-  getCodeChallenge() {
-    let hash = '';
-    let result = '';
-    const chars = '0123456789abcdef';
-    result = '';
-    for (let i = 64; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
-    hash = crypto.createHash('sha256').update(result).digest('base64');
-    hash = hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
-    return [result, hash];
-  }
   /**
    * Is called when adapter shuts down - callback has to be called under any circumstances!
    * @param {() => void} callback
@@ -440,6 +619,7 @@ class Porsche extends utils.Adapter {
       this.refreshTokenInterval && clearInterval(this.refreshTokenInterval);
       callback();
     } catch (e) {
+      this.log.error('Error during unload: ' + e);
       callback();
     }
   }
@@ -487,7 +667,7 @@ class Porsche extends utils.Adapter {
           url: 'https://api.ppa.porsche.com/app/connect/v1/vehicles/' + deviceId + '/commands',
           headers: {
             accept: '*/*',
-            'x-client-id': '52064df8-6daa-46f7-bc9e-e3232622ab26',
+            'x-client-id': this.xClientId,
             'content-type': 'application/json',
             'accept-language': 'de',
             authorization: 'Bearer ' + this.session.access_token,
