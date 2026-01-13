@@ -78,6 +78,7 @@ class Porsche extends utils.Adapter {
     }
   }
   async login() {
+    this.log.info('Starting login process...');
     const headers = {
       'User-Agent': this.userAgent,
       'X-Client-ID': this.xClientId,
@@ -107,7 +108,7 @@ class Porsche extends utils.Adapter {
           const urlParams = new URL(location, 'http://dummy').searchParams;
           const code = urlParams.get('code');
           if (code) {
-            this.log.debug('Got authorization code from existing session');
+            this.log.info('Using existing session, exchanging code for token...');
             await this.exchangeCodeForToken(code, headers);
             return;
           }
@@ -138,6 +139,7 @@ class Porsche extends utils.Adapter {
     }
 
     this.log.debug('Got state: ' + state);
+    this.log.info('Submitting username...');
 
     // Step 2: POST /u/login/identifier with email
     try {
@@ -161,7 +163,7 @@ class Porsche extends utils.Adapter {
         maxRedirects: 0,
         validateStatus: (status) => status === 302 || status === 200,
       });
-      this.log.debug('Identifier step completed');
+      this.log.info('Username accepted, submitting password...');
     } catch (error) {
       if (error.response && error.response.status === 401) {
         this.log.error('Wrong credentials');
@@ -189,6 +191,7 @@ class Porsche extends utils.Adapter {
         }
         return;
       }
+      this.log.info('Username accepted, submitting password...');
     }
 
     // Step 3: POST /u/login/password with password
@@ -236,6 +239,8 @@ class Porsche extends utils.Adapter {
       this.log.error('No resume path found after password step');
       return;
     }
+
+    this.log.info('Password accepted, completing authorization...');
 
     // Wait a bit before resuming (as in Python code)
     await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -285,6 +290,7 @@ class Porsche extends utils.Adapter {
     }
 
     this.log.debug('Got authorization code: ' + authorizationCode);
+    this.log.info('Exchanging authorization code for token...');
     await this.exchangeCodeForToken(authorizationCode, headers);
   }
 
@@ -306,6 +312,7 @@ class Porsche extends utils.Adapter {
       .then((res) => {
         this.log.debug(JSON.stringify(res.data));
         this.session = res.data;
+        this.log.info('Login successful!');
         this.setState('info.connection', true, true);
       })
       .catch((error) => {
@@ -713,10 +720,7 @@ class Porsche extends utils.Adapter {
     if (typeof obj === 'object') {
       // imageSendTo expects the full data URL string directly (e.g., "data:image/svg+xml;base64,...")
       if (obj.command === 'getCaptcha') {
-        this.log.info('getCaptcha called, pendingCaptcha: ' + (this.pendingCaptcha ? 'yes' : 'no'));
         if (this.pendingCaptcha && this.pendingCaptcha.svg) {
-          // SVG is already a data URL like "data:image/svg+xml;base64,..."
-          this.log.info('Returning captcha image, length: ' + this.pendingCaptcha.svg.length);
           this.sendTo(obj.from, obj.command, this.pendingCaptcha.svg, obj.callback);
         } else {
           // Return visible placeholder when no captcha is pending
