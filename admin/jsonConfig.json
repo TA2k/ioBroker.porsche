@@ -39,15 +39,29 @@
       "text": "If a captcha is required during login, it will be displayed below. Enter the code and click Submit.",
       "sm": 12
     },
-    "_captchaImage": {
-      "type": "imageSendTo",
-      "command": "getCaptcha",
-      "sm": 12
+    "_testRandom": {
+      "type": "textSendTo",
+      "command": "getTestRandom",
+      "sm": 12,
+      "label": "Test Random Number (should change on refresh)"
     },
     "_captchaStatus": {
       "type": "textSendTo",
       "command": "getCaptchaText",
-      "sm": 12
+      "sm": 12,
+      "label": "Captcha Status"
+    },
+    "_captchaImage": {
+      "type": "imageSendTo",
+      "command": "getCaptcha",
+      "sm": 12,
+      "label": "Captcha Image (sendTo)"
+    },
+    "_hardcodedCaptcha": {
+      "type": "staticImage",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAsMCwxNTAsNTAiPjxwYXRoIGQ9Ik0xNiA0MiBDNzIgNDIsNzcgMjUsMTMxIDMxIiBzdHJva2U9IiMzMzMiIGZpbGw9Im5vbmUiLz48cGF0aCBmaWxsPSIjNDQ0IiBkPSJNMTguMzMgMTkuNjhMMTguMjggMTkuNjJMMTYuODEgMTkuODNMMTYuNzQgMTkuNzZRMTQuNDcgMTkuODUgMTQuMjQgMjEuODdMMTQuMzAgMjEuOTJMMTQuMjMgMjEuODZRMTQuMjAgMjIuNjMgMTQuMjQgMjMuNjJMMTQuMTIgMjMuNTBMMTQuMjcgMjMuNjVRMTQuMjEgMjUuNDkgMTUuNDYgMjYuODJMMTUuNDcgMjYuODJMMTUuNTYgMjYuOTFRMTYuNzggMjguMjEgMTguNjggMjguMDZMMTguNjUgMjguMDNMMTguNzQgMjguMTJRMjAuNjcgMjcuODQgMjEuNDMgMjYuOTJMMjEuNDkgMjYuOThMMjEuNTUgMjcuMDRRMjIuNjIgMjYuMTQgMjIuODkgMjMuODlMMjIuODUgMjMuODVMMjIuODIgMjMuODJRMjMuMDEgMjEuNTAgMjEuNzYgMjAuNjZMMjEuOTAgMjAuODBMMjEuNzkgMjAuNzBRMjAuOTkgMTkuOTcgMTguMzIgMTkuNjdaTTI0LjI3IDI4LjgyTDI0LjMzIDI4Ljg4TDIzLjA4IDMxLjIwTDIzLjAwIDMxLjEyUTIwLjI5IDM1LjkxIDE2LjUyIDM5Ljk4TDE2LjU3IDQwLjAzTDE2LjYzIDQwLjA5UTE0Ljg0IDQwLjA5IDEyLjE0IDQwLjg5TDEyLjIxIDQwLjk2TDEyLjMxIDQxLjA3UTE3LjYyIDM0Ljc2IDIwLjc4IDI5Ljk2TDIwLjcyIDI5LjkwTDIwLjcyIDI5LjkwUTE5LjYzIDMwLjQ5IDE3Ljk5IDMwLjU2TDE4LjEyIDMwLjcwTDE4LjA0IDMwLjYyUTE1LjExIDMwLjg1IDEzLjU5IDI4Ljg3TDEzLjU4IDI4Ljg2TDEzLjYyIDI4LjkwUTEyLjM0IDI3LjIzIDExLjIzIDIyLjY2TDExLjI3IDIyLjcxTDExLjI5IDIyLjcyUTExLjE3IDIyLjE0IDExLjAxIDIxLjIxTDEwLjk4IDIxLjE3TDExLjExIDIxLjMwUTEwLjg1IDIwLjI2IDEwLjg1IDE5LjgxTDEwLjk4IDE5Ljk0TDEwLjk0IDE5Ljg5UTEwLjgyIDE3Ljk5IDExLjg5IDE3LjM4TDExLjk3IDE3LjQ2TDExLjg4IDE3LjM3UTEzLjEzIDE2LjY0IDE0Ljk5IDE2LjY0TDE1LjA5IDE2Ljc0TDE1LjA1IDE2LjcwUTE4LjE5IDE2LjY0IDE4LjE5IDE2LjY0TDE4LjIzIDE2LjY4TDE4LjIxIDE2LjY2UTIwLjUyIDE2Ljg0IDIxLjc3IDE3LjAzTDIxLjcyIDE2Ljk3TDIxLjY0IDE2Ljg5UTIzLjg4IDE3LjI3IDI0Ljc5IDE3Ljc2TDI0LjY0IDE3LjYxTDI0LjgwIDE3Ljc3UTI2LjE1IDE4LjUxIDI2LjM0IDIwLjI3TDI2LjMzIDIwLjI1TDI2LjM3IDIwLjI5UTI2LjM0IDIwLjQ5IDI2LjE1IDIzLjE1TDI2LjA0IDIzLjA1TDI2LjA0IDIzLjA1UTI1Ljc2IDI1LjI4IDI1LjUzIDI2LjEyTDI1LjU3IDI2LjE2TDI1LjU4IDI2LjE3UTI1LjAzIDI3LjQwIDI0LjI3IDI4LjgxWiIvPjwvc3ZnPg==",
+      "sm": 12,
+      "label": "Hardcoded Test Image (staticImage)"
     },
     "captchaCode": {
       "type": "text",

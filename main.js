@@ -710,7 +710,14 @@ class Porsche extends utils.Adapter {
    * @param {ioBroker.Message} obj
    */
   onMessage(obj) {
-    if (typeof obj === 'object' && obj.message) {
+    if (typeof obj === 'object') {
+      // Test command to verify sendTo communication works
+      if (obj.command === 'getTestRandom') {
+        const randomNum = Math.floor(Math.random() * 10000);
+        this.log.debug('getTestRandom called, returning: ' + randomNum);
+        this.sendTo(obj.from, obj.command, 'Random: ' + randomNum + ' (Time: ' + new Date().toLocaleTimeString() + ')', obj.callback);
+        return;
+      }
       // imageSendTo expects just the data URL string directly
       if (obj.command === 'getCaptcha') {
         if (this.pendingCaptcha && this.pendingCaptcha.svg) {
