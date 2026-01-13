@@ -41,8 +41,8 @@ porsche.0.vin.remote auf true/false setzen steuert den jeweiligen Befehl
 
 ## Changelog
 
-### 0.5.0
-- fix login
+### 0.5.1
+- fix login and add remotes
 
 ### 0.2.0
 

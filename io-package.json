@@ -1,10 +1,12 @@
 {
   "common": {
     "name": "porsche",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "news": {
-      "0.5.0": {
-        "en": "fix login. Captcha entering in settings needed."
+      "0.5.1": {
+        "en": "fix login. Captcha entering in settings needed. Added new remotes state.",
+        "de": "Login behoben. Captcha-Eingabe in den Einstellungen erforderlich. Neuer Remotes hinzugefügt."
+        
       },
       "0.3.0": {
         "en": "fix login"

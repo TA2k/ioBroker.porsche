@@ -366,31 +366,52 @@ class Porsche extends utils.Adapter {
           });
 
           const remoteArray = [
-            { command: 'REMOTE_HEATING_START', name: 'True = Start' },
-            { command: 'REMOTE_CLIMATIZER-temperature', name: 'REMOTE_CLIMATIZER Temperature', type: 'number', role: 'value' },
-            { command: 'REMOTE_HEATING_STOP', name: 'True = Stop' },
-            { command: 'REMOTE_ACV_START', name: 'True = Start' },
-            { command: 'REMOTE_ACV_STOP', name: 'True = Stop' },
-            { command: 'REMOTE_CLIMATIZER_START', name: 'True = Start' },
-            { command: 'REMOTE_CLIMATIZER_STOP', name: 'True = Stop' },
-            { command: 'LOCK', name: 'True = Lokc' },
-            { command: 'UNLOCK', name: 'True = Unlock' },
-            { command: 'Refresh', name: 'True = Refresh' },
-            { command: 'Force_Refresh', name: 'True = Force Refresh' },
+            // Heating
+            { command: 'REMOTE_HEATING_START', name: 'Start Heating', desc: 'Start auxiliary heating' },
+            { command: 'REMOTE_HEATING_STOP', name: 'Stop Heating', desc: 'Stop auxiliary heating' },
+            // Climatizer (A/C with temperature)
+            { command: 'REMOTE_CLIMATIZER_START', name: 'Start Climatizer', desc: 'Start air conditioning with set temperature' },
+            { command: 'REMOTE_CLIMATIZER_STOP', name: 'Stop Climatizer', desc: 'Stop air conditioning' },
+            { command: 'REMOTE_CLIMATIZER-temperature', name: 'Climatizer Temperature', desc: 'Target temperature for climatizer (Celsius)', type: 'number', role: 'value' },
+            // ACV - Auxiliary Climatizer Ventilation
+            { command: 'REMOTE_ACV_START', name: 'Start Ventilation', desc: 'Start auxiliary ventilation (10 min, no A/C)' },
+            { command: 'REMOTE_ACV_STOP', name: 'Stop Ventilation', desc: 'Stop auxiliary ventilation' },
+            // Direct Charging
+            { command: 'DIRECT_CHARGING_START', name: 'Start Direct Charging', desc: 'Start immediate charging (bypasses timer/profiles)' },
+            { command: 'DIRECT_CHARGING_STOP', name: 'Stop Direct Charging', desc: 'Stop immediate charging' },
+            // Charging Control
+            { command: 'CHARGING_START', name: 'Start Charging', desc: 'Start charging session' },
+            { command: 'CHARGING_STOP', name: 'Stop Charging', desc: 'Stop current charging session' },
+            // Lock/Unlock
+            { command: 'LOCK', name: 'Lock Vehicle', desc: 'Lock all doors' },
+            { command: 'UNLOCK', name: 'Unlock Vehicle', desc: 'Unlock all doors' },
+            // Honk & Flash
+            { command: 'HONK_FLASH', name: 'Honk & Flash', desc: 'Honk horn and flash lights to locate vehicle' },
+            { command: 'HONK_FLASH-mode', name: 'Honk & Flash Mode', desc: 'Mode: HONK, FLASH, or HONK_AND_FLASH', type: 'string', role: 'text', states: { HONK: 'HONK', FLASH: 'FLASH', HONK_AND_FLASH: 'HONK_AND_FLASH' } },
+            // Timer Control
+            { command: 'TIMERS_DISABLE', name: 'Disable Timers', desc: 'Disable all charging/climate timers' },
+            // Refresh
+            { command: 'Refresh', name: 'Refresh Data', desc: 'Refresh vehicle data from cloud' },
+            { command: 'Force_Refresh', name: 'Force Refresh', desc: 'Force wake-up vehicle and refresh data' },
           ];
-          remoteArray.forEach((remote) => {
-            this.setObjectNotExists(device.vin + '.remote.' + remote.command, {
+          for (const remote of remoteArray) {
+            const common = {
+              name: remote.name || '',
+              desc: remote.desc || '',
+              type: /** @type {ioBroker.CommonType} */ (remote.type || 'boolean'),
+              role: remote.role || 'boolean',
+              write: true,
+              read: true,
+            };
+            if (remote.states) {
+              common.states = remote.states;
+            }
+            await this.setObjectNotExistsAsync(device.vin + '.remote.' + remote.command, {
               type: 'state',
-              common: {
-                name: remote.name || '',
-                type: remote.type || 'boolean',
-                role: remote.role || 'boolean',
-                write: true,
-                read: true,
-              },
+              common: common,
               native: {},
             });
-          });
+          }
           this.json2iob.parse(device.vin + '.general', device);
           await this.requestClient({
             method: 'get',
@@ -427,100 +448,102 @@ class Porsche extends utils.Adapter {
 
     this.lastForceRefresh = Date.now();
     // Measurements from official Porsche App (de.porsche.one APK) + legacy measurements
-    const measurements = [
-      'ACV_STATE',
-      'ALARM_STATE',
-      'BATTERY_CHARGING_STATE',
-      'BATTERY_LEVEL',
-      'BATTERY_TYPE',
-      'BEM_LEVEL',
-      'BLEID_DDADATA',
-      'CAR_ALARMS_HISTORY',
-      'CHARGING_PROFILES',
-      'CHARGING_RATE',
-      'CHARGING_SETTINGS',
-      'CHARGING_SUMMARY',
-      'CLIMATIZER_STATE',
-      'DEPARTURES',
-      'DESTINATIONS',
-      'DIRECT_CHARGING',
-      'E_CONSUMPTION_DATA',
-      'E_RANGE',
-      'FUEL_LEVEL',
-      'FUEL_RESERVE',
-      'GLOBAL_PRIVACY_MODE',
-      'GLOBAL_TIMESTAMP',
-      'GPS_LOCATION',
-      'GUIDANCE_SETTINGS',
-      'HEATING_STATE',
-      'HVAC_STATE',
-      'HVAC_SUMMARY',
-      'INTERMEDIATE_SERVICE_RANGE',
-      'INTERMEDIATE_SERVICE_TIME',
-      'LOCATION_ALARMS',
-      'LOCATION_ALARMS_HISTORY',
-      'LOCK_STATE_VEHICLE',
-      'MAIN_SERVICE_RANGE',
-      'MAIN_SERVICE_TIME',
-      'MDK_ACTIVATION_STATE',
-      'MDK_CARD_STATE',
-      'MDK_PAIRING_PASSWORD',
-      'MDK_PAIRING_STATE',
-      'MILEAGE',
-      'OIL_LEVEL_CURRENT',
-      'OIL_LEVEL_MAX',
-      'OIL_LEVEL_MIN_WARNING',
-      'OIL_SERVICE_RANGE',
-      'OIL_SERVICE_TIME',
-      'OPEN_STATE_CHARGE_FLAP_LEFT',
-      'OPEN_STATE_CHARGE_FLAP_RIGHT',
-      'OPEN_STATE_DOOR_FRONT_LEFT',
-      'OPEN_STATE_DOOR_FRONT_RIGHT',
-      'OPEN_STATE_DOOR_REAR_LEFT',
-      'OPEN_STATE_DOOR_REAR_RIGHT',
-      'OPEN_STATE_LID_FRONT',
-      'OPEN_STATE_LID_REAR',
-      'OPEN_STATE_SERVICE_FLAP',
-      'OPEN_STATE_SPOILER',
-      'OPEN_STATE_SUNROOF',
-      'OPEN_STATE_SUNROOF_REAR',
-      'OPEN_STATE_TOP',
-      'OPEN_STATE_WINDOW_FRONT_LEFT',
-      'OPEN_STATE_WINDOW_FRONT_RIGHT',
-      'OPEN_STATE_WINDOW_REAR_LEFT',
-      'OPEN_STATE_WINDOW_REAR_RIGHT',
-      'OTA_CONSENT_STATUS',
-      'OTA_UPDATE_DETAILS',
-      'PAIRING_CODE',
-      'PARKING_BRAKE',
-      'PARKING_LIGHT',
-      'RANGE',
-      'REMOTE_ACCESS_AUTHORIZATION',
-      'SERVICE_PREDICTIONS',
-      'SPEED_ALARMS',
-      'SPEED_ALARMS_HISTORY',
-      'THEFT_MODE',
-      'THEFT_STATE',
-      'TIMERS',
-      'TIMEZONE',
-      'TIRE_PRESSURE',
-      'TIRE_PRESSURE_FRONT_LEFT',
-      'TIRE_PRESSURE_FRONT_RIGHT',
-      'TIRE_PRESSURE_REAR_LEFT',
-      'TIRE_PRESSURE_REAR_RIGHT',
-      'TRIP_STATISTICS_CYCLIC',
-      'TRIP_STATISTICS_CYCLIC_HISTORY',
-      'TRIP_STATISTICS_LONG_TERM',
-      'TRIP_STATISTICS_LONG_TERM_HISTORY',
-      'TRIP_STATISTICS_MONTHLY_REPORT',
-      'TRIP_STATISTICS_SHORT_TERM',
-      'TRIP_STATISTICS_SHORT_TERM_HISTORY',
-      'VALET_ALARM',
-      'VALET_ALARM_HISTORY',
-      'VTS_MODES',
-      'VTS_CERTIFICATE_LIST',
-      'VTS_CONFIGURATION',
-    ];
+    // Each measurement has a description for better understanding
+    const measurementsWithDesc = {
+      ACV_STATE: 'Auxiliary Climatizer Ventilation state',
+      ALARM_STATE: 'Vehicle alarm system state',
+      BATTERY_CHARGING_STATE: 'High-voltage battery charging state',
+      BATTERY_LEVEL: 'High-voltage battery charge level (%)',
+      BATTERY_TYPE: 'Battery type information',
+      BEM_LEVEL: 'Battery Energy Management level',
+      BLEID_DDADATA: 'Bluetooth LE identification data',
+      CAR_ALARMS_HISTORY: 'History of triggered alarms',
+      CHARGING_PROFILES: 'Configured charging profiles/schedules',
+      CHARGING_RATE: 'Current charging rate (kW)',
+      CHARGING_SETTINGS: 'Charging configuration settings',
+      CHARGING_SUMMARY: 'Charging session summary',
+      CLIMATIZER_STATE: 'Air conditioning/climatizer state',
+      DEPARTURES: 'Scheduled departure times for preconditioning',
+      DESTINATIONS: 'Saved navigation destinations',
+      DIRECT_CHARGING: 'Direct/immediate charging state',
+      E_CONSUMPTION_DATA: 'Electric energy consumption data',
+      E_RANGE: 'Electric driving range (km)',
+      FUEL_LEVEL: 'Fuel tank level (%)',
+      FUEL_RESERVE: 'Fuel reserve warning state',
+      GLOBAL_PRIVACY_MODE: 'Privacy mode state (disables remote access)',
+      GLOBAL_TIMESTAMP: 'Last data update timestamp',
+      GPS_LOCATION: 'Current GPS position',
+      GUIDANCE_SETTINGS: 'Navigation guidance settings',
+      HEATING_STATE: 'Auxiliary heating state',
+      HVAC_STATE: 'Heating/Ventilation/AC state',
+      HVAC_SUMMARY: 'HVAC system summary',
+      INTERMEDIATE_SERVICE_RANGE: 'Distance until intermediate service (km)',
+      INTERMEDIATE_SERVICE_TIME: 'Time until intermediate service',
+      LOCATION_ALARMS: 'Geofence/location alarm settings',
+      LOCATION_ALARMS_HISTORY: 'History of location alarm triggers',
+      LOCK_STATE_VEHICLE: 'Door lock state',
+      MAIN_SERVICE_RANGE: 'Distance until main service (km)',
+      MAIN_SERVICE_TIME: 'Time until main service',
+      MDK_ACTIVATION_STATE: 'Mobile Device Key activation state',
+      MDK_CARD_STATE: 'Mobile Device Key card state',
+      MDK_PAIRING_PASSWORD: 'Mobile Device Key pairing password',
+      MDK_PAIRING_STATE: 'Mobile Device Key pairing state',
+      MILEAGE: 'Total mileage (km)',
+      OIL_LEVEL_CURRENT: 'Current oil level',
+      OIL_LEVEL_MAX: 'Maximum oil level',
+      OIL_LEVEL_MIN_WARNING: 'Oil level minimum warning threshold',
+      OIL_SERVICE_RANGE: 'Distance until oil service (km)',
+      OIL_SERVICE_TIME: 'Time until oil service',
+      OPEN_STATE_CHARGE_FLAP_LEFT: 'Left charging flap open state',
+      OPEN_STATE_CHARGE_FLAP_RIGHT: 'Right charging flap open state',
+      OPEN_STATE_DOOR_FRONT_LEFT: 'Front left door open state',
+      OPEN_STATE_DOOR_FRONT_RIGHT: 'Front right door open state',
+      OPEN_STATE_DOOR_REAR_LEFT: 'Rear left door open state',
+      OPEN_STATE_DOOR_REAR_RIGHT: 'Rear right door open state',
+      OPEN_STATE_LID_FRONT: 'Front lid/hood open state',
+      OPEN_STATE_LID_REAR: 'Rear lid/trunk open state',
+      OPEN_STATE_SERVICE_FLAP: 'Service flap open state',
+      OPEN_STATE_SPOILER: 'Spoiler position state',
+      OPEN_STATE_SUNROOF: 'Sunroof open state',
+      OPEN_STATE_SUNROOF_REAR: 'Rear sunroof open state',
+      OPEN_STATE_TOP: 'Convertible top state',
+      OPEN_STATE_WINDOW_FRONT_LEFT: 'Front left window open state',
+      OPEN_STATE_WINDOW_FRONT_RIGHT: 'Front right window open state',
+      OPEN_STATE_WINDOW_REAR_LEFT: 'Rear left window open state',
+      OPEN_STATE_WINDOW_REAR_RIGHT: 'Rear right window open state',
+      OTA_CONSENT_STATUS: 'Over-the-air update consent status',
+      OTA_UPDATE_DETAILS: 'Over-the-air update details',
+      PAIRING_CODE: 'Vehicle pairing code',
+      PARKING_BRAKE: 'Parking brake state',
+      PARKING_LIGHT: 'Parking light state',
+      RANGE: 'Total driving range (km)',
+      REMOTE_ACCESS_AUTHORIZATION: 'Remote access authorization state',
+      SERVICE_PREDICTIONS: 'Predicted service dates',
+      SPEED_ALARMS: 'Speed alarm settings',
+      SPEED_ALARMS_HISTORY: 'History of speed alarm triggers',
+      THEFT_MODE: 'Theft protection mode',
+      THEFT_STATE: 'Theft detection state',
+      TIMERS: 'Charging/climate timer settings',
+      TIMEZONE: 'Vehicle timezone setting',
+      TIRE_PRESSURE: 'Tire pressure overview',
+      TIRE_PRESSURE_FRONT_LEFT: 'Front left tire pressure (bar)',
+      TIRE_PRESSURE_FRONT_RIGHT: 'Front right tire pressure (bar)',
+      TIRE_PRESSURE_REAR_LEFT: 'Rear left tire pressure (bar)',
+      TIRE_PRESSURE_REAR_RIGHT: 'Rear right tire pressure (bar)',
+      TRIP_STATISTICS_CYCLIC: 'Cyclic trip statistics',
+      TRIP_STATISTICS_CYCLIC_HISTORY: 'Cyclic trip statistics history',
+      TRIP_STATISTICS_LONG_TERM: 'Long-term trip statistics',
+      TRIP_STATISTICS_LONG_TERM_HISTORY: 'Long-term trip statistics history',
+      TRIP_STATISTICS_MONTHLY_REPORT: 'Monthly trip report',
+      TRIP_STATISTICS_SHORT_TERM: 'Short-term trip statistics',
+      TRIP_STATISTICS_SHORT_TERM_HISTORY: 'Short-term trip statistics history',
+      VALET_ALARM: 'Valet mode alarm settings',
+      VALET_ALARM_HISTORY: 'Valet alarm history',
+      VTS_MODES: 'Vehicle Tracking System modes',
+      VTS_CERTIFICATE_LIST: 'VTS certificate list',
+      VTS_CONFIGURATION: 'Vehicle Tracking System configuration',
+    };
+    const measurements = Object.keys(measurementsWithDesc);
     let url = 'https://api.ppa.porsche.com/app/connect/v1/vehicles/$vin?mf=' + measurements.join('&mf=');
 
     if (forceRefresh) {
@@ -550,7 +573,7 @@ class Porsche extends utils.Adapter {
           url: url,
           headers: headers,
         })
-          .then((res) => {
+          .then(async (res) => {
             this.log.debug(JSON.stringify(res.data));
             if (!res.data) {
               return;
@@ -564,6 +587,7 @@ class Porsche extends utils.Adapter {
               forceIndex: forceIndex,
               preferedArrayName: preferedArrayName,
               channelName: element.desc,
+              descriptions: measurementsWithDesc,
             });
           })
           .catch((error) => {
@@ -659,6 +683,9 @@ class Porsche extends utils.Adapter {
         if (command === 'REMOTE_CLIMATIZER-temperature') {
           return;
         }
+        if (command === 'HONK_FLASH-mode') {
+          return;
+        }
         if (command === 'Refresh') {
           this.updateDevices();
         }
@@ -677,6 +704,10 @@ class Porsche extends utils.Adapter {
           } else {
             data.payload.temperature = 22;
           }
+        }
+        if (command === 'HONK_FLASH') {
+          const modeState = await this.getStateAsync(deviceId + '.remote.HONK_FLASH-mode');
+          data.payload.mode = modeState && modeState.val ? modeState.val : 'HONK_AND_FLASH';
         }
 
         this.log.debug(JSON.stringify(data));
