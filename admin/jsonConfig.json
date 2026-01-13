@@ -63,9 +63,7 @@
       "label": "Submit Captcha",
       "command": "submitCaptcha",
       "variant": "contained",
-      "data": {
-        "captchaCode": "${data.captchaCode}"
-      },
+      "jsonData": "{\"captchaCode\": \"${data.captchaCode}\"}",
       "sm": 12,
       "md": 4
     }
