@@ -1,66 +1,80 @@
 {
   "i18n": true,
-  "type": "tabs",
+  "type": "panel",
   "items": {
-    "main": {
-      "type": "panel",
-      "label": "Settings",
-      "items": {
-        "username": {
-          "type": "text",
-          "label": "App Email",
-          "sm": 12,
-          "md": 6
-        },
-        "password": {
-          "type": "password",
-          "label": "App Password",
-          "sm": 12,
-          "md": 6
-        },
-        "interval": {
-          "type": "number",
-          "label": "Update interval in minutes",
-          "min": 1,
-          "sm": 12,
-          "md": 4
-        }
-      }
+    "_header": {
+      "type": "header",
+      "text": "Porsche Connect Settings",
+      "size": 2
     },
-    "captcha": {
-      "type": "panel",
-      "label": "Captcha",
-      "items": {
-        "_captchaInfo": {
-          "type": "staticText",
-          "text": "If a captcha is required during login, it will be displayed here. Enter the code and click Submit.",
-          "sm": 12
-        },
-        "_captchaImage": {
-          "type": "imageSendTo",
-          "command": "getCaptcha",
-          "width": 200,
-          "height": 80,
-          "sm": 12
-        },
-        "captchaCode": {
-          "type": "text",
-          "label": "Captcha Code",
-          "sm": 12,
-          "md": 6
-        },
-        "_submitCaptcha": {
-          "type": "sendTo",
-          "label": "Submit Captcha",
-          "command": "submitCaptcha",
-          "variant": "contained",
-          "data": {
-            "captchaCode": "${data.captchaCode}"
-          },
-          "sm": 12,
-          "md": 4
-        }
-      }
+    "username": {
+      "type": "text",
+      "label": "App Email",
+      "sm": 12,
+      "md": 6
+    },
+    "password": {
+      "type": "password",
+      "label": "App Password",
+      "sm": 12,
+      "md": 6
+    },
+    "interval": {
+      "type": "number",
+      "label": "Update interval in minutes",
+      "min": 1,
+      "sm": 12,
+      "md": 4
+    },
+    "_divider": {
+      "type": "divider"
+    },
+    "_captchaHeader": {
+      "type": "header",
+      "text": "Captcha",
+      "size": 3
+    },
+    "_captchaInfo": {
+      "type": "staticText",
+      "text": "If a captcha is required during login, it will be displayed below. Enter the code and click Submit.",
+      "sm": 12
+    },
+    "_captchaImageSendTo": {
+      "type": "imageSendTo",
+      "command": "getCaptcha",
+      "width": 250,
+      "height": 100,
+      "sm": 12,
+      "label": "Captcha (imageSendTo)"
+    },
+    "_captchaHtml": {
+      "type": "html",
+      "command": "getCaptchaHtml",
+      "sm": 12,
+      "label": "Captcha (html)"
+    },
+    "_captchaText": {
+      "type": "textSendTo",
+      "command": "getCaptchaText",
+      "sm": 12,
+      "label": "Captcha Status"
+    },
+    "captchaCode": {
+      "type": "text",
+      "label": "Captcha Code",
+      "sm": 12,
+      "md": 6
+    },
+    "_submitCaptcha": {
+      "type": "sendTo",
+      "label": "Submit Captcha",
+      "command": "submitCaptcha",
+      "variant": "contained",
+      "data": {
+        "captchaCode": "${data.captchaCode}"
+      },
+      "sm": 12,
+      "md": 4
     }
   }
 }
