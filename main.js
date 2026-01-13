@@ -711,31 +711,6 @@ class Porsche extends utils.Adapter {
    */
   onMessage(obj) {
     if (typeof obj === 'object') {
-      // Start login manually from admin UI
-      if (obj.command === 'startLogin') {
-        this.log.info('startLogin called from admin UI');
-        this.pendingCaptcha = null;
-        this.login().then(() => {
-          if (this.pendingCaptcha) {
-            this.sendTo(obj.from, obj.command, { result: 'Captcha required - please enter the code shown below' }, obj.callback);
-          } else if (this.session && this.session.access_token) {
-            this.sendTo(obj.from, obj.command, { result: 'Login successful!' }, obj.callback);
-          } else {
-            this.sendTo(obj.from, obj.command, { error: 'Login failed - check logs for details' }, obj.callback);
-          }
-        }).catch((err) => {
-          this.log.error('Login error: ' + err);
-          this.sendTo(obj.from, obj.command, { error: 'Login error: ' + err.message }, obj.callback);
-        });
-        return;
-      }
-      // Test command to verify sendTo communication works
-      if (obj.command === 'getTestRandom') {
-        const randomNum = Math.floor(Math.random() * 10000);
-        this.log.debug('getTestRandom called, returning: ' + randomNum);
-        this.sendTo(obj.from, obj.command, 'Random: ' + randomNum + ' (Time: ' + new Date().toLocaleTimeString() + ')', obj.callback);
-        return;
-      }
       // imageSendTo expects the full data URL string directly (e.g., "data:image/svg+xml;base64,...")
       if (obj.command === 'getCaptcha') {
         this.log.info('getCaptcha called, pendingCaptcha: ' + (this.pendingCaptcha ? 'yes' : 'no'));
@@ -744,10 +719,10 @@ class Porsche extends utils.Adapter {
           this.log.info('Returning captcha image, length: ' + this.pendingCaptcha.svg.length);
           this.sendTo(obj.from, obj.command, this.pendingCaptcha.svg, obj.callback);
         } else {
-          // Return a hardcoded test SVG to verify the communication works
-          const testSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNkZGQiLz48dGV4dCB4PSI3NSIgeT0iMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMzMzMiPk5vIENhcHRjaGE8L3RleHQ+PC9zdmc+';
-          this.log.info('No captcha pending, returning test image');
-          this.sendTo(obj.from, obj.command, testSvg, obj.callback);
+          // Return visible placeholder when no captcha is pending
+          // SVG says "No Captcha - Reload page if needed"
+          const placeholder = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><rect width="200" height="60" fill="#f0f0f0" stroke="#ccc"/><text x="100" y="25" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="14">No Captcha</text><text x="100" y="45" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="11">Reload page if needed</text></svg>').toString('base64');
+          this.sendTo(obj.from, obj.command, placeholder, obj.callback);
         }
       }
       // textSendTo expects the text string directly

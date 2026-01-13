@@ -36,28 +36,21 @@
     },
     "_captchaInfo": {
       "type": "staticText",
-      "text": "1. Click 'Start Login' to begin authentication. 2. If a captcha appears, enter the code. 3. Click 'Submit Captcha' to complete login.",
+      "text": "If a captcha is required during login, enter the code shown below and click 'Submit Captcha'. If no captcha is visible, reload this page.",
       "sm": 12
-    },
-    "_startLogin": {
-      "type": "sendTo",
-      "label": "Start Login",
-      "command": "startLogin",
-      "variant": "contained",
-      "color": "primary",
-      "sm": 12,
-      "md": 4
     },
     "_captchaStatus": {
       "type": "textSendTo",
       "command": "getCaptchaText",
       "sm": 12,
-      "label": "Status"
+      "label": "Status",
+      "alsoDependsOn": ["captchaCode"]
     },
     "_captchaImage": {
       "type": "imageSendTo",
       "command": "getCaptcha",
-      "sm": 12
+      "sm": 12,
+      "alsoDependsOn": ["captchaCode"]
     },
     "captchaCode": {
       "type": "text",
