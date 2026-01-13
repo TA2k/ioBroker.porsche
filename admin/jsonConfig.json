@@ -31,37 +31,33 @@
     },
     "_captchaHeader": {
       "type": "header",
-      "text": "Captcha",
+      "text": "Captcha Login",
       "size": 3
     },
     "_captchaInfo": {
       "type": "staticText",
-      "text": "If a captcha is required during login, it will be displayed below. Enter the code and click Submit.",
+      "text": "1. Click 'Start Login' to begin authentication. 2. If a captcha appears, enter the code. 3. Click 'Submit Captcha' to complete login.",
       "sm": 12
     },
-    "_testRandom": {
-      "type": "textSendTo",
-      "command": "getTestRandom",
+    "_startLogin": {
+      "type": "sendTo",
+      "label": "Start Login",
+      "command": "startLogin",
+      "variant": "contained",
+      "color": "primary",
       "sm": 12,
-      "label": "Test Random Number"
+      "md": 4
     },
     "_captchaStatus": {
       "type": "textSendTo",
       "command": "getCaptchaText",
       "sm": 12,
-      "label": "Captcha Status"
-    },
-    "_hardcodedCaptcha": {
-      "type": "staticImage",
-      "src": "test-captcha.svg",
-      "sm": 12,
-      "label": "Hardcoded Test Image (file in admin/)"
+      "label": "Status"
     },
     "_captchaImage": {
       "type": "imageSendTo",
       "command": "getCaptcha",
-      "sm": 12,
-      "label": "Captcha Image (sendTo)"
+      "sm": 12
     },
     "captchaCode": {
       "type": "text",

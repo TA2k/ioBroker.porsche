@@ -711,6 +711,24 @@ class Porsche extends utils.Adapter {
    */
   onMessage(obj) {
     if (typeof obj === 'object') {
+      // Start login manually from admin UI
+      if (obj.command === 'startLogin') {
+        this.log.info('startLogin called from admin UI');
+        this.pendingCaptcha = null;
+        this.login().then(() => {
+          if (this.pendingCaptcha) {
+            this.sendTo(obj.from, obj.command, { result: 'Captcha required - please enter the code shown below' }, obj.callback);
+          } else if (this.session && this.session.access_token) {
+            this.sendTo(obj.from, obj.command, { result: 'Login successful!' }, obj.callback);
+          } else {
+            this.sendTo(obj.from, obj.command, { error: 'Login failed - check logs for details' }, obj.callback);
+          }
+        }).catch((err) => {
+          this.log.error('Login error: ' + err);
+          this.sendTo(obj.from, obj.command, { error: 'Login error: ' + err.message }, obj.callback);
+        });
+        return;
+      }
       // Test command to verify sendTo communication works
       if (obj.command === 'getTestRandom') {
         const randomNum = Math.floor(Math.random() * 10000);
