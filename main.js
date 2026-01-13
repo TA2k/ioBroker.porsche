@@ -718,15 +718,18 @@ class Porsche extends utils.Adapter {
         this.sendTo(obj.from, obj.command, 'Random: ' + randomNum + ' (Time: ' + new Date().toLocaleTimeString() + ')', obj.callback);
         return;
       }
-      // imageSendTo expects just the data URL string directly
+      // imageSendTo expects the full data URL string directly (e.g., "data:image/svg+xml;base64,...")
       if (obj.command === 'getCaptcha') {
+        this.log.info('getCaptcha called, pendingCaptcha: ' + (this.pendingCaptcha ? 'yes' : 'no'));
         if (this.pendingCaptcha && this.pendingCaptcha.svg) {
           // SVG is already a data URL like "data:image/svg+xml;base64,..."
-          // Just send the URL directly
+          this.log.info('Returning captcha image, length: ' + this.pendingCaptcha.svg.length);
           this.sendTo(obj.from, obj.command, this.pendingCaptcha.svg, obj.callback);
         } else {
-          // Return empty or placeholder
-          this.sendTo(obj.from, obj.command, null, obj.callback);
+          // Return a hardcoded test SVG to verify the communication works
+          const testSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNkZGQiLz48dGV4dCB4PSI3NSIgeT0iMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMzMzMiPk5vIENhcHRjaGE8L3RleHQ+PC9zdmc+';
+          this.log.info('No captcha pending, returning test image');
+          this.sendTo(obj.from, obj.command, testSvg, obj.callback);
         }
       }
       // textSendTo expects the text string directly
