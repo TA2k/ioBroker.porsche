@@ -39,25 +39,15 @@
       "text": "If a captcha is required during login, it will be displayed below. Enter the code and click Submit.",
       "sm": 12
     },
-    "_captchaImageSendTo": {
+    "_captchaImage": {
       "type": "imageSendTo",
       "command": "getCaptcha",
-      "width": 250,
-      "height": 100,
-      "sm": 12,
-      "label": "Captcha (imageSendTo)"
+      "sm": 12
     },
-    "_captchaHtml": {
-      "type": "html",
-      "command": "getCaptchaHtml",
-      "sm": 12,
-      "label": "Captcha (html)"
-    },
-    "_captchaText": {
+    "_captchaStatus": {
       "type": "textSendTo",
       "command": "getCaptchaText",
-      "sm": 12,
-      "label": "Captcha Status"
+      "sm": 12
     },
     "captchaCode": {
       "type": "text",

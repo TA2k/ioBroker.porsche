@@ -711,62 +711,23 @@ class Porsche extends utils.Adapter {
    */
   onMessage(obj) {
     if (typeof obj === 'object' && obj.message) {
-      // imageSendTo expects { data: base64, type: mimeType }
+      // imageSendTo expects just the data URL string directly
       if (obj.command === 'getCaptcha') {
         if (this.pendingCaptcha && this.pendingCaptcha.svg) {
           // SVG is already a data URL like "data:image/svg+xml;base64,..."
-          const svgDataUrl = this.pendingCaptcha.svg;
-          if (svgDataUrl.startsWith('data:image/svg+xml;base64,')) {
-            const base64Data = svgDataUrl.replace('data:image/svg+xml;base64,', '');
-            this.sendTo(obj.from, obj.command, {
-              data: base64Data,
-              type: 'image/svg+xml',
-            }, obj.callback);
-          } else {
-            // Try sending as-is
-            this.sendTo(obj.from, obj.command, {
-              data: svgDataUrl,
-              type: 'image/svg+xml',
-            }, obj.callback);
-          }
+          // Just send the URL directly
+          this.sendTo(obj.from, obj.command, this.pendingCaptcha.svg, obj.callback);
         } else {
-          this.sendTo(obj.from, obj.command, {
-            error: 'No captcha pending',
-          }, obj.callback);
+          // Return empty or placeholder
+          this.sendTo(obj.from, obj.command, null, obj.callback);
         }
       }
-      // textSendTo expects { text: string } or { error: string }
+      // textSendTo expects the text string directly
       if (obj.command === 'getCaptchaText') {
         if (this.pendingCaptcha && this.pendingCaptcha.svg) {
-          this.sendTo(obj.from, obj.command, {
-            text: 'Captcha is available! Please enter the code shown in the image above.',
-          }, obj.callback);
+          this.sendTo(obj.from, obj.command, 'Captcha is available! Please enter the code shown in the image above.', obj.callback);
         } else {
-          this.sendTo(obj.from, obj.command, {
-            text: 'No captcha pending. Login may have succeeded or not been attempted yet.',
-          }, obj.callback);
-        }
-      }
-      // html type with sendTo - return HTML string
-      if (obj.command === 'getCaptchaHtml') {
-        if (this.pendingCaptcha && this.pendingCaptcha.svg) {
-          const svgDataUrl = this.pendingCaptcha.svg;
-          // Decode base64 SVG and embed directly
-          if (svgDataUrl.startsWith('data:image/svg+xml;base64,')) {
-            const base64Data = svgDataUrl.replace('data:image/svg+xml;base64,', '');
-            const svgContent = Buffer.from(base64Data, 'base64').toString('utf-8');
-            this.sendTo(obj.from, obj.command, {
-              html: `<div style="background: white; padding: 10px; border: 1px solid #ccc; display: inline-block;">${svgContent}</div>`,
-            }, obj.callback);
-          } else {
-            this.sendTo(obj.from, obj.command, {
-              html: `<img src="${svgDataUrl}" style="background: white; padding: 10px; border: 1px solid #ccc;" />`,
-            }, obj.callback);
-          }
-        } else {
-          this.sendTo(obj.from, obj.command, {
-            html: '<span style="color: gray;">No captcha pending</span>',
-          }, obj.callback);
+          this.sendTo(obj.from, obj.command, 'No captcha pending. Login may have succeeded or not been attempted yet.', obj.callback);
         }
       }
       if (obj.command === 'submitCaptcha') {
