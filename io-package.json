@@ -66,6 +66,10 @@
     "mode": "daemon",
     "type": "vehicle",
     "compact": true,
+    "messagebox": true,
+    "adminUI": {
+      "config": "json"
+    },
     "connectionType": "cloud",
     "dataSource": "poll",
     "materialize": true,

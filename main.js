@@ -26,7 +26,9 @@ class Porsche extends utils.Adapter {
     this.on('ready', this.onReady.bind(this));
     this.on('stateChange', this.onStateChange.bind(this));
     this.on('unload', this.onUnload.bind(this));
+    this.on('message', this.onMessage.bind(this));
     this.deviceArray = [];
+    this.pendingCaptcha = null;
     this.json2iob = new Json2iob(this);
     this.lastForceRefresh = 0;
     this.cookieJar = new tough.CookieJar();
@@ -166,7 +168,17 @@ class Porsche extends utils.Adapter {
         return;
       }
       if (error.response && error.response.status === 400) {
-        this.log.error('Captcha required - please login via browser first');
+        const html = error.response.data;
+        const match = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
+        if (match) {
+          this.pendingCaptcha = {
+            svg: match[1],
+            state: state,
+          };
+          this.log.warn('Captcha required - please enter captcha code in admin config');
+        } else {
+          this.log.error('Captcha required but could not extract image');
+        }
         return;
       }
       // 302 redirect is expected, continue
@@ -689,6 +701,230 @@ class Porsche extends utils.Adapter {
         this.refreshTimeout = setTimeout(async () => {
           await this.updateDevices();
         }, 10 * 1000);
+      }
+    }
+  }
+
+  /**
+   * Handle messages from admin interface
+   * @param {ioBroker.Message} obj
+   */
+  onMessage(obj) {
+    if (typeof obj === 'object' && obj.message) {
+      if (obj.command === 'getCaptcha') {
+        if (this.pendingCaptcha && this.pendingCaptcha.svg) {
+          this.sendTo(obj.from, obj.command, {
+            data: this.pendingCaptcha.svg,
+            type: 'image/svg+xml',
+          }, obj.callback);
+        } else {
+          this.sendTo(obj.from, obj.command, {
+            error: 'No captcha pending',
+          }, obj.callback);
+        }
+      }
+      if (obj.command === 'submitCaptcha') {
+        const captchaCode = obj.message.captchaCode;
+        if (captchaCode) {
+          this.loginWithCaptcha(captchaCode);
+          this.sendTo(obj.from, obj.command, {
+            result: 'Captcha submitted, retrying login...',
+          }, obj.callback);
+        } else {
+          this.sendTo(obj.from, obj.command, {
+            error: 'No captcha code provided',
+          }, obj.callback);
+        }
+      }
+    }
+  }
+
+  /**
+   * Retry login with captcha code
+   * @param {string} captchaCode
+   */
+  async loginWithCaptcha(captchaCode) {
+    if (!this.pendingCaptcha) {
+      this.log.error('No pending captcha');
+      return;
+    }
+
+    const state = this.pendingCaptcha.state;
+    const headers = {
+      'User-Agent': this.userAgent,
+      'X-Client-ID': this.xClientId,
+    };
+
+    this.log.info('Retrying login with captcha code...');
+
+    // Step 2: POST /u/login/identifier with captcha
+    try {
+      await this.requestClient({
+        method: 'post',
+        url: 'https://identity.porsche.com/u/login/identifier',
+        params: { state: state },
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data: qs.stringify({
+          state: state,
+          username: this.config.username,
+          'js-available': 'true',
+          'webauthn-available': 'false',
+          'is-brave': 'false',
+          'webauthn-platform-available': 'false',
+          action: 'default',
+          captcha: captchaCode,
+        }),
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+      this.log.debug('Identifier step with captcha completed');
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        this.log.error('Wrong credentials');
+        return;
+      }
+      if (error.response && error.response.status === 400) {
+        this.log.error('Captcha invalid or expired - please try again');
+        // Extract new captcha if available
+        const html = error.response.data;
+        const match = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
+        if (match) {
+          this.pendingCaptcha = {
+            svg: match[1],
+            state: state,
+          };
+          this.log.warn('New captcha required - please enter new captcha code in admin config');
+        }
+        return;
+      }
+      // 302 redirect is expected, continue
+      if (!error.response || error.response.status !== 302) {
+        this.log.error('Error in identifier step with captcha: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    // Clear pending captcha
+    this.pendingCaptcha = null;
+
+    // Step 3: POST /u/login/password with password
+    let resumePath;
+    try {
+      const passwordResponse = await this.requestClient({
+        method: 'post',
+        url: 'https://identity.porsche.com/u/login/password',
+        params: { state: state },
+        headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data: qs.stringify({
+          state: state,
+          username: this.config.username,
+          password: this.config.password,
+          action: 'default',
+        }),
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+
+      if (passwordResponse.status === 302) {
+        resumePath = passwordResponse.headers.location;
+        this.log.debug('Resume path: ' + resumePath);
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 302) {
+        resumePath = error.response.headers.location;
+        this.log.debug('Resume path from error: ' + resumePath);
+      } else if (error.response && error.response.status === 400) {
+        this.log.error('Invalid credentials');
+        return;
+      } else {
+        this.log.error('Error in password step: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    if (!resumePath) {
+      this.log.error('No resume path found after password step');
+      return;
+    }
+
+    // Wait a bit before resuming
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    // Step 4: Resume the authorization flow
+    let authorizationCode;
+    try {
+      const resumeUrl = resumePath.startsWith('http') ? resumePath : `https://identity.porsche.com${resumePath}`;
+      const resumeResponse = await this.requestClient({
+        method: 'get',
+        url: resumeUrl,
+        headers: headers,
+        maxRedirects: 0,
+        validateStatus: (status) => status === 302 || status === 200,
+      });
+
+      if (resumeResponse.status === 302) {
+        const location = resumeResponse.headers.location;
+        this.log.debug('Final redirect location: ' + location);
+
+        if (location && location.includes('code=')) {
+          const urlParams = new URL(location, 'http://dummy').searchParams;
+          authorizationCode = urlParams.get('code');
+        }
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 302) {
+        const location = error.response.headers.location;
+        this.log.debug('Final redirect location from error: ' + location);
+
+        if (location && location.includes('code=')) {
+          const urlParams = new URL(location, 'http://dummy').searchParams;
+          authorizationCode = urlParams.get('code');
+        }
+      } else {
+        this.log.error('Error in resume step: ' + error);
+        if (error.response) {
+          this.log.error(JSON.stringify(error.response.data));
+        }
+        return;
+      }
+    }
+
+    if (!authorizationCode) {
+      this.log.error('No authorization code found after captcha login');
+      return;
+    }
+
+    this.log.debug('Got authorization code: ' + authorizationCode);
+    await this.exchangeCodeForToken(authorizationCode, headers);
+
+    // If login was successful, start fetching data
+    if (this.session.access_token) {
+      this.log.info('Login with captcha successful!');
+      await this.getDeviceList();
+      await this.updateDevices(true);
+
+      // Set up intervals if not already running
+      if (!this.updateInterval) {
+        this.updateInterval = setInterval(async () => {
+          await this.updateDevices();
+        }, this.config.interval * 60 * 1000);
+      }
+      if (!this.refreshTokenInterval) {
+        this.refreshTokenInterval = setInterval(() => {
+          this.refreshToken();
+        }, this.session.expires_in * 1000);
       }
     }
   }

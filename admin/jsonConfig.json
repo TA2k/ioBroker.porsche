@@ -1,0 +1,66 @@
+{
+  "i18n": true,
+  "type": "tabs",
+  "items": {
+    "main": {
+      "type": "panel",
+      "label": "Settings",
+      "items": {
+        "username": {
+          "type": "text",
+          "label": "App Email",
+          "sm": 12,
+          "md": 6
+        },
+        "password": {
+          "type": "password",
+          "label": "App Password",
+          "sm": 12,
+          "md": 6
+        },
+        "interval": {
+          "type": "number",
+          "label": "Update interval in minutes",
+          "min": 1,
+          "sm": 12,
+          "md": 4
+        }
+      }
+    },
+    "captcha": {
+      "type": "panel",
+      "label": "Captcha",
+      "items": {
+        "_captchaInfo": {
+          "type": "staticText",
+          "text": "If a captcha is required during login, it will be displayed here. Enter the code and click Submit.",
+          "sm": 12
+        },
+        "_captchaImage": {
+          "type": "imageSendTo",
+          "command": "getCaptcha",
+          "width": 200,
+          "height": 80,
+          "sm": 12
+        },
+        "captchaCode": {
+          "type": "text",
+          "label": "Captcha Code",
+          "sm": 12,
+          "md": 6
+        },
+        "_submitCaptcha": {
+          "type": "sendTo",
+          "label": "Submit Captcha",
+          "command": "submitCaptcha",
+          "variant": "contained",
+          "data": {
+            "captchaCode": "${data.captchaCode}"
+          },
+          "sm": 12,
+          "md": 4
+        }
+      }
+    }
+  }
+}
