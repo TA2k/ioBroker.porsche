@@ -171,10 +171,29 @@ class Porsche extends utils.Adapter {
       }
       if (error.response && error.response.status === 400) {
         const html = error.response.data;
-        const match = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
-        if (match) {
+        // New Auth0 ACUL format: captcha is in window.universal_login_context JSON
+        const contextMatch = html.match(/atob\(['"]([^'"]+)['"]\)/);
+        if (contextMatch) {
+          try {
+            const jsonString = Buffer.from(contextMatch[1], 'base64').toString('utf-8');
+            const contextData = JSON.parse(jsonString);
+            if (contextData.screen?.captcha?.image) {
+              this.pendingCaptcha = {
+                svg: contextData.screen.captcha.image,
+                state: state,
+              };
+              this.log.warn('Captcha required - please enter captcha code in admin config');
+              return;
+            }
+          } catch (e) {
+            this.log.debug('Failed to parse ACUL context: ' + e.message);
+          }
+        }
+        // Fallback: old format with img tag
+        const imgMatch = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
+        if (imgMatch) {
           this.pendingCaptcha = {
-            svg: match[1],
+            svg: imgMatch[1],
             state: state,
           };
           this.log.warn('Captcha required - please enter captcha code in admin config');
@@ -835,10 +854,29 @@ class Porsche extends utils.Adapter {
         this.log.error('Captcha invalid or expired - please try again');
         // Extract new captcha if available
         const html = error.response.data;
-        const match = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
-        if (match) {
+        // New Auth0 ACUL format
+        const contextMatch = html.match(/atob\(['"]([^'"]+)['"]\)/);
+        if (contextMatch) {
+          try {
+            const jsonString = Buffer.from(contextMatch[1], 'base64').toString('utf-8');
+            const contextData = JSON.parse(jsonString);
+            if (contextData.screen?.captcha?.image) {
+              this.pendingCaptcha = {
+                svg: contextData.screen.captcha.image,
+                state: state,
+              };
+              this.log.warn('New captcha required - please enter new captcha code in admin config');
+              return;
+            }
+          } catch (e) {
+            this.log.debug('Failed to parse ACUL context: ' + e.message);
+          }
+        }
+        // Fallback: old format
+        const imgMatch = html.match(/<img[^>]+alt="captcha"[^>]+src="([^"]+)"/);
+        if (imgMatch) {
           this.pendingCaptcha = {
-            svg: match[1],
+            svg: imgMatch[1],
             state: state,
           };
           this.log.warn('New captcha required - please enter new captcha code in admin config');

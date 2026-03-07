@@ -36,7 +36,11 @@
     },
     "_captchaInfo": {
       "type": "staticText",
-      "text": "If a captcha is required during login, enter the code shown below and click 'Submit Captcha'. If no captcha is visible, reload this page.",
+      "text": "If a captcha is required during login, enter the code shown below and click 'Submit Captcha' (not 'Save'!). If no captcha is visible, reload this page.",
+      "style": {
+        "color": "#ff9800",
+        "fontWeight": "bold"
+      },
       "sm": 12
     },
     "_captchaStatus": {
@@ -44,15 +48,15 @@
       "command": "getCaptchaText",
       "sm": 12,
       "label": "Status",
-      "alsoDependsOn": ["captchaCode"]
+      "alsoDependsOn": ["_captchaCode"]
     },
     "_captchaImage": {
       "type": "imageSendTo",
       "command": "getCaptcha",
       "sm": 12,
-      "alsoDependsOn": ["captchaCode"]
+      "alsoDependsOn": ["_captchaCode"]
     },
-    "captchaCode": {
+    "_captchaCode": {
       "type": "text",
       "label": "Captcha Code",
       "sm": 12,
@@ -63,7 +67,7 @@
       "label": "Submit Captcha",
       "command": "submitCaptcha",
       "variant": "contained",
-      "jsonData": "{\"captchaCode\": \"${data.captchaCode}\"}",
+      "jsonData": "{\"captchaCode\": \"${data._captchaCode}\"}",
       "sm": 12,
       "md": 4
     }

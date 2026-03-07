@@ -1,6 +1,6 @@
 {
     "name": "iobroker.porsche",
-    "version": "0.5.1",
+    "version": "0.5.2",
     "description": "Adapter for myPorsche",
     "author": {
         "name": "TA2k",
@@ -28,7 +28,7 @@
     },
     "devDependencies": {
         "@iobroker/testing": "^5.2.2",
-        "@types/node": "^25.0.6",
+        "@types/node": "^25.0.9",
         "eslint": "^9.39.2",
         "typescript": "~5.9.3"
     },
