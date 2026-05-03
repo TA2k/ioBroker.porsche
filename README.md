@@ -48,6 +48,8 @@ porsche.0.vin.remote auf true/false setzen steuert den jeweiligen Befehl
 
 - (TA2k) fix login
 
+[Older changelogs can be found there](CHANGELOG_OLD.md)
+
 ## License
 
 MIT License
