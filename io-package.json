@@ -6,7 +6,6 @@
       "0.5.2": {
         "en": "fix login. Captcha entering in settings needed. Added new remotes state.",
         "de": "Login behoben. Captcha-Eingabe in den Einstellungen erforderlich. Neuer Remotes hinzugefügt."
-        
       },
       "0.3.0": {
         "en": "fix login"
@@ -58,8 +57,13 @@
       "pl": "Adapter do myPorsche",
       "zh-cn": "myPorsche 适配器"
     },
-    "authors": ["TA2k <tombox2020@gmail.com>"],
-    "keywords": ["porsche", "myporsche"],
+    "authors": [
+      "TA2k <tombox2020@gmail.com>"
+    ],
+    "keywords": [
+      "porsche",
+      "myporsche"
+    ],
     "license": "MIT",
     "platform": "Javascript/Node.js",
     "main": "main.js",
@@ -85,7 +89,7 @@
     },
     "dependencies": [
       {
-        "js-controller": ">=3.2.0"
+        "js-controller": ">=6.0.11"
       }
     ],
     "globalDependencies": [
@@ -94,8 +98,12 @@
       }
     ]
   },
-  "encryptedNative": ["password"],
-  "protectedNative": ["password"],
+  "encryptedNative": [
+    "password"
+  ],
+  "protectedNative": [
+    "password"
+  ],
   "native": {
     "username": "",
     "password": "",
